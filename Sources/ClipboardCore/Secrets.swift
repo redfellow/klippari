@@ -72,11 +72,12 @@ public enum Secrets {
     /// of the same kind can be told apart. Before it, only a variable name
     /// ('export GH_TOKEN=') stays; anything else there, and anything after
     /// it, is hidden, since a secret often sits beside another one. A line
-    /// with no known credential is treated as one whole secret, as a
-    /// password is.
+    /// with no known credential is one whole secret, as a password is,
+    /// and shows as the dots alone: none of its characters, nor its
+    /// length.
     public static func mask(_ line: String) -> String {
         if isArmorLine(line) { return line }
-        guard let (range, prefix) = credentials(in: line).first else { return maskWhole(line) }
+        guard let (range, prefix) = credentials(in: line).first else { return dots }
         let before = String(line[..<range.lowerBound])
         let after = line[range.upperBound...]
         var result = before.isEmpty || isAssignment(before) ? before : dots + " "
@@ -133,12 +134,5 @@ public enum Secrets {
         let body = credential.count - prefix.count
         let tail = body >= 16 ? 4 : body >= 8 ? 2 : 0
         return prefix + dots + String(credential.suffix(tail))
-    }
-
-    /// Shows at most an eighth of the text at each end, and never more
-    /// than three characters there, so a short password shows nothing.
-    private static func maskWhole(_ text: String) -> String {
-        let shown = min(3, text.count / 8)
-        return String(text.prefix(shown)) + dots + String(text.suffix(shown))
     }
 }

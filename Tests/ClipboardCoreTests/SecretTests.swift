@@ -180,10 +180,20 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         #expect(!Secrets.containsCredential("-----BEGIN PGP PUBLIC KEY BLOCK-----\nmQENBF..."))
     }
 
-    @Test func passwordsShowLittleOrNothing() {
+    @Test func passwordsShowNothing() {
         #expect(Secrets.mask("hunter2") == Secrets.dots)
-        #expect(Secrets.mask("correct horse battery staple") == "cor" + Secrets.dots + "ple")
-        #expect(Secrets.mask("sixteen-chars-pw") == "si" + Secrets.dots + "pw")
+        #expect(Secrets.mask("correct horse battery staple") == Secrets.dots)
+        #expect(Secrets.mask("sixteen-chars-pw") == Secrets.dots)
+    }
+
+    @Test func aPasswordRowShowsAndSearchesNoneOfIt() {
+        var item = makeItem(text("correct horse battery staple"))
+        item.expiresAt = at(600)
+        let row = RowPresentation(item)
+        #expect(row.title == Secrets.dots)
+        #expect(!row.matches("cor"))
+        #expect(!row.matches("ple"))
+        #expect(row.matches("secret"))
     }
 }
 

@@ -72,8 +72,8 @@ without the mouse.
   so two of the same kind can be told apart. Before it only a variable
   name stays (`export GH_TOKEN=`); any other text before or after it is
   replaced by dots, since a secret often sits beside another one. A line
-  with no known credential is masked whole, showing at most an eighth
-  of it, and no more than three characters, at each end. A line that is
+  with no known credential, such as a password, shows only the dots:
+  none of its characters, and not its length. A line that is
   exactly a private key's BEGIN or END header stays. A lock badge shows
   the minutes left.
 - The filter matches only what a secret's row shows, and the word

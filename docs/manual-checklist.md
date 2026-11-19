@@ -10,8 +10,8 @@ Expected behaviour is defined in `specification.md`.
 - [ ] Copying text, an image and a file each adds a row, with no
       prompt from macOS about clipboard access.
 - [ ] A password copied from the password manager does not appear.
-- [ ] A password copied in Keychain Access or Passwords appears masked
-      with a lock badge, is not in the storage folder, and is gone
+- [ ] A password copied in Keychain Access or Passwords appears as
+      dots only, with none of its characters, and a lock badge, is not in the storage folder, and is gone
       after 10 minutes.
 - [ ] A copied API key (`sk-ant-…`, `ghp_…`) appears masked as prefix,
       dots and its last four characters; two keys can be told apart.
