@@ -22,7 +22,10 @@ import Observation
 
     private let store: HistoryStore
     private let now: () -> Date
-    private var presentations: [UUID: RowPresentation] = [:]
+    /// Rows worked out before, by item. An item keeps its id when it is
+    /// copied again as a secret, and its row must then be worked out
+    /// again, masked; nothing else about an item changes its row.
+    private var presentations: [UUID: (isSecret: Bool, row: RowPresentation)] = [:]
 
     /// Typing in the panel edits this; the first match becomes selected.
     public var query: String = "" {
@@ -133,8 +136,13 @@ import Observation
         let date = now()
         var built: [Row] = []
         for item in items {
-            let presentation = presentations[item.id] ?? RowPresentation(item)
-            presentations[item.id] = presentation
+            let presentation: RowPresentation
+            if let cached = presentations[item.id], cached.isSecret == item.isSecret {
+                presentation = cached.row
+            } else {
+                presentation = RowPresentation(item)
+                presentations[item.id] = (item.isSecret, presentation)
+            }
             guard presentation.matches(query) else { continue }
             built.append(Row(
                 id: item.id,

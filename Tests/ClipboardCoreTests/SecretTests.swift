@@ -209,6 +209,24 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         #expect(!row.matches("api03"))
     }
 
+    @Test func copyingAgainAsASecretMasksTheRowAlreadyShown() {
+        let store = HistoryStore(storage: ItemStorage(root: temporaryRoot(), cipher: testCipher))
+        let model = PanelModel(store: store, now: { at(2) })
+        let password = "correct horse battery staple"
+        let plain = store.add(text(password), sourceApp: "Terminal", now: at(0))
+        #expect(model.rows.map(\.presentation.title) == [password])
+
+        // The same text again, this time with a password app in front.
+        let secret = store.add(text(password), sourceApp: "Keychain Access", secret: true, now: at(1))
+        #expect(secret.id == plain.id)
+        #expect(model.rows.count == 1)
+        #expect(model.rows[0].presentation.title == Secrets.dots)
+        #expect(!model.rows[0].presentation.searchText.contains("correct"))
+        #expect(model.rows[0].expiresIn != nil)
+        model.query = "horse"
+        #expect(model.rows.isEmpty)
+    }
+
     @Test func panelShowsTimeLeft() {
         let store = HistoryStore(storage: ItemStorage(root: temporaryRoot(), cipher: testCipher))
         store.add(text("plain"), sourceApp: nil, now: at(0))

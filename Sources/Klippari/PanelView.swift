@@ -162,7 +162,9 @@ struct PanelView: View {
                         ForEach(model.rows) { row in
                             RowView(
                                 row: row, isSelected: row.id == model.selectedID,
-                                appWidth: appWidth, thumbnail: { thumbnails.image(for: row.id, in: storage) },
+                                appWidth: appWidth, // A secret has no thumbnail, even if its item had one
+                                // before it was copied again as a secret.
+                                thumbnail: { row.expiresIn == nil ? thumbnails.image(for: row.id, in: storage) : nil },
                                 onHoverThumbnail: settings.magnifyImages
                                     ? { inside in onHoverImage(row.id, inside) } : nil
                             )
