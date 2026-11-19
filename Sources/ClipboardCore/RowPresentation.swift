@@ -42,8 +42,15 @@ public struct RowPresentation: Equatable, Sendable {
                 .components(separatedBy: .newlines)
                 .map { $0.trimmingCharacters(in: .whitespaces) }
                 .filter { !$0.isEmpty }
-            title = lines.first ?? "Empty text"
-            searchParts = [string]
+            if item.isSecret {
+                // Only the masked line is shown, and only it is searched,
+                // so typing in the filter cannot confirm the hidden part.
+                title = Secrets.mask(lines.first ?? "")
+                searchParts = [title, "secret"]
+            } else {
+                title = lines.first ?? "Empty text"
+                searchParts = [string]
+            }
             if content.hasType(TypeName.rtf) || content.hasType(TypeName.html) {
                 kind = .styledText
                 tag = "styled"
@@ -105,4 +112,11 @@ public func ageString(from date: Date, now: Date) -> String {
     if seconds < 3600 { return "\(seconds / 60) min" }
     if seconds < 86400 { return "\(seconds / 3600) h" }
     return "\(seconds / 86400) d"
+}
+
+/// Time left before a secret leaves the history, in whole minutes rounded
+/// up, so it reads '1 min' until the very end.
+public func remainingString(until date: Date, now: Date) -> String {
+    let minutes = max(1, Int((date.timeIntervalSince(now) / 60).rounded(.up)))
+    return "\(minutes) min"
 }

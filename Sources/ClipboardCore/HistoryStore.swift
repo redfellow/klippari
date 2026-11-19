@@ -57,7 +57,12 @@ public struct RestoreResult: Equatable, Sendable {
 /// The ordered history, newest first, mirrored to disk. Items in memory
 /// carry lightened content (text and file URLs only); images and other
 /// large data stay on disk until an item is pasted.
+///
+/// Secrets are the exception: they are never written to disk, keep their
+/// full content in memory, and leave the history after `secretLifetime`.
 @MainActor public final class HistoryStore {
+    /// How long a secret stays in the history after it was copied.
+    public static let secretLifetime: TimeInterval = 10 * 60
     /// How long each clear can be restored after it was made.
     public static let archiveLifetime: TimeInterval = 24 * 60 * 60
     /// The most the cleared history may take on disk, in bytes. Past
@@ -84,6 +89,9 @@ public struct RestoreResult: Equatable, Sendable {
 
     /// Called after every mutation.
     public var onChange: (() -> Void)?
+    /// Called when a secret joins the history, so its expiry can be
+    /// timed.
+    public var onSecretAdded: (() -> Void)?
 
     /// With `sealingPlainItems`, history written before encryption is
     /// encrypted first (see `sealPlainHistory`). The app does that on
@@ -152,60 +160,90 @@ public struct RestoreResult: Equatable, Sendable {
     }
 
     /// Records a copy. Content identical to an existing item moves that
-    /// item to the top instead of adding a duplicate.
+    /// item to the top instead of adding a duplicate. A `secret` copy is
+    /// kept in memory only, until `secretLifetime` from now.
     @discardableResult
-    public func add(_ content: ClipContent, sourceApp: String?, now: Date) -> ClipItem {
+    public func add(_ content: ClipContent, sourceApp: String?, secret: Bool = false, now: Date) -> ClipItem {
         let hash = content.contentHash
         if let index = items.firstIndex(where: { $0.contentHash == hash }) {
-            return touch(index, now: now)
+            guard secret else { return touch(index, now: now) }
+            // Copied again as a secret: off the disk if it was on it, and
+            // a fresh lifetime.
+            var item = items.remove(at: index)
+            if !item.isSecret { storage.delete(id: item.id) }
+            item.content = content
+            item.lastUsedAt = now
+            item.expiresAt = now.addingTimeInterval(Self.secretLifetime)
+            items.insert(item, at: 0)
+            onChange?()
+            onSecretAdded?()
+            return item
         }
 
         var item = ClipItem(
             id: UUID(), capturedAt: now, lastUsedAt: now, sourceApp: sourceApp,
-            content: content, imageInfo: ImageInfo.inspect(content), contentHash: hash
+            content: content, imageInfo: ImageInfo.inspect(content), contentHash: hash,
+            expiresAt: secret ? now.addingTimeInterval(Self.secretLifetime) : nil
         )
-        do {
-            try storage.save(item)
-            item.content = content.lightened
-        } catch {
-            // Keep the full content in memory, so the item can still be
-            // pasted; it just will not survive a restart.
-            Self.logger.error("Could not save item: \(error.localizedDescription, privacy: .public)")
+        if !secret {
+            do {
+                try storage.save(item)
+                item.content = content.lightened
+            } catch {
+                // Keep the full content in memory, so the item can still be
+                // pasted; it just will not survive a restart.
+                Self.logger.error("Could not save item: \(error.localizedDescription, privacy: .public)")
+            }
         }
         items.insert(item, at: 0)
         trim()
         onChange?()
+        if secret { onSecretAdded?() }
         return item
     }
 
     /// Takes over another store's items, as when the history moves from
     /// a folder kept for one run to the saved one. Each item is saved
-    /// here with its full content, read from the other store. Content
-    /// already here is not added twice, and the history size applies.
-    /// An item whose content can no longer be read whole is left out:
-    /// it could not be pasted either.
+    /// here with its full content, read from the other store; secrets
+    /// stay in memory, with the time they have left. Content already
+    /// here is not added twice, and the history size applies. An item
+    /// whose content can no longer be read whole is left out: it could
+    /// not be pasted either.
     public func adopt(_ other: HistoryStore) {
         let present = Set(items.map(\.contentHash))
         for var item in other.items where !present.contains(item.contentHash) {
             let full = other.fullContent(for: item.id) ?? item.content
             guard full.isComplete else { continue }
             item.content = full
-            do {
-                try storage.save(item)
-                item.content = full.lightened
-            } catch {
-                Self.logger.error("Could not save item: \(error.localizedDescription, privacy: .public)")
+            if !item.isSecret {
+                do {
+                    try storage.save(item)
+                    item.content = full.lightened
+                } catch {
+                    Self.logger.error("Could not save item: \(error.localizedDescription, privacy: .public)")
+                }
             }
             items.append(item)
         }
         items.sort { $0.lastUsedAt > $1.lastUsedAt }
         trim()
         onChange?()
+        if items.contains(where: \.isSecret) { onSecretAdded?() }
     }
 
     public func markUsed(_ id: UUID, now: Date) {
         guard let index = items.firstIndex(where: { $0.id == id }) else { return }
         touch(index, now: now)
+    }
+
+    /// Removes the secrets whose time is up. Returns whether any were.
+    @discardableResult
+    public func expireSecrets(now: Date) -> Bool {
+        let before = items.count
+        items.removeAll { $0.expiresAt.map { $0 <= now } ?? false }
+        guard items.count != before else { return false }
+        onChange?()
+        return true
     }
 
     /// The item's complete content for pasting. Falls back to what is in
@@ -225,8 +263,9 @@ public struct RestoreResult: Equatable, Sendable {
 
     /// Clears the history by moving it to the archive, as a clear of its
     /// own beside those made before: an archived copy of something
-    /// cleared again now gives way to the newer one. Returns how many
-    /// items were cleared. An item kept only in memory, because saving
+    /// cleared again now gives way to the newer one. Secrets are dropped,
+    /// never archived. Returns how many items were archived, which is
+    /// how many can be restored. An item kept only in memory, because saving
     /// it failed, is saved into the archive. An item that could not be
     /// moved or saved stays in the history and is not counted; 0 means
     /// nothing changed. If the archive has grown past
@@ -237,11 +276,11 @@ public struct RestoreResult: Equatable, Sendable {
         let archive = archive
         let earlier = archive.items()
         let clear = archive.storage(for: now)
-        var (moved, left) = storage.archive(items.map(\.id), to: clear)
+        var (moved, left) = storage.archive(items.lazy.filter { !$0.isSecret }.map(\.id), to: clear)
         // An item whose save failed is only in memory, with its full
         // content: save it into the archive instead. If that fails too,
-        // it stays in the history.
-        for item in items where !moved.contains(item.id) && !left.contains(item.id) {
+        // it stays in the history. A secret is never written to disk.
+        for item in items where !item.isSecret && !moved.contains(item.id) && !left.contains(item.id) {
             do {
                 try clear.save(item)
                 moved.insert(item.id)
@@ -264,12 +303,13 @@ public struct RestoreResult: Equatable, Sendable {
 
         // What was archived is gone from the history, so the list never
         // shows an item whose files have moved, and the count is only
-        // of items that can be restored.
+        // of items that can be restored. Secrets go too, unarchived.
         let before = items.count
-        items.removeAll { moved.contains($0.id) }
+        let archived = items.filter { moved.contains($0.id) }.count
+        items.removeAll { moved.contains($0.id) || $0.isSecret }
         guard items.count != before else { return 0 }
         onChange?()
-        return before - items.count
+        return archived
     }
 
     /// The archived history, if there is one.
@@ -354,16 +394,19 @@ public struct RestoreResult: Equatable, Sendable {
     }
 
     /// Moves an item to the top. Only its manifest is rewritten; the data
-    /// files, which can be large, are left alone.
+    /// files, which can be large, are left alone. A secret has nothing on
+    /// disk, and its lifetime does not restart when it is pasted.
     @discardableResult
     private func touch(_ index: Int, now: Date) -> ClipItem {
         var item = items.remove(at: index)
         item.lastUsedAt = now
         items.insert(item, at: 0)
-        do {
-            try storage.updateManifest(item)
-        } catch {
-            Self.logger.error("Could not update item: \(error.localizedDescription, privacy: .public)")
+        if !item.isSecret {
+            do {
+                try storage.updateManifest(item)
+            } catch {
+                Self.logger.error("Could not update item: \(error.localizedDescription, privacy: .public)")
+            }
         }
         onChange?()
         return item

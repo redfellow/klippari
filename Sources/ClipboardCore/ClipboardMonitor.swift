@@ -6,6 +6,7 @@ import Foundation
     private let pasteboard: PasteboardClient
     private let store: HistoryStore
     private let sourceApp: @MainActor () -> String?
+    private let sourceBundleID: @MainActor () -> String?
     private let now: () -> Date
     private var lastSeenCount: Int
     private var timer: Timer?
@@ -20,11 +21,14 @@ import Foundation
 
     public init(
         pasteboard: PasteboardClient, store: HistoryStore,
-        sourceApp: @escaping @MainActor () -> String?, now: @escaping () -> Date = Date.init
+        sourceApp: @escaping @MainActor () -> String?,
+        sourceBundleID: @escaping @MainActor () -> String? = { nil },
+        now: @escaping () -> Date = Date.init
     ) {
         self.pasteboard = pasteboard
         self.store = store
         self.sourceApp = sourceApp
+        self.sourceBundleID = sourceBundleID
         self.now = now
         // Whatever is on the clipboard at launch was not copied on our watch.
         self.lastSeenCount = pasteboard.changeCount
@@ -51,7 +55,8 @@ import Foundation
         guard count != lastSeenCount else { return }
         lastSeenCount = count
         guard !isPaused, let content = CaptureFilter.accept(pasteboard.read()) else { return }
-        store.add(content, sourceApp: sourceApp(), now: now())
+        let secret = Secrets.isSecret(content, frontmostBundleID: sourceBundleID())
+        store.add(content, sourceApp: sourceApp(), secret: secret, now: now())
     }
 
     /// Puts a history item back on the clipboard without recording that

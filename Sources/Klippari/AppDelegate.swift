@@ -14,6 +14,7 @@ import os
     private var settingsWindow: SettingsWindowController!
     private var registeredShortcut: Shortcut?
     private var expiryTimer: Timer?
+    private var secretTimer: Timer?
     /// Set when the history could not be opened on disk and lives in a
     /// throwaway folder for this run instead.
     private var unsavedRoot: URL?
@@ -104,11 +105,13 @@ import os
         monitor?.stop()
         panel?.hide()
         store = HistoryStore(storage: storage, limit: settings.historyLimit, sealingPlainItems: false)
+        store.onSecretAdded = { [weak self] in self?.startSecretTimer() }
         if let previous { store.adopt(previous) }
         store.expireArchive(now: Date())
         monitor = ClipboardMonitor(
             pasteboard: SystemPasteboard(), store: store,
-            sourceApp: { NSWorkspace.shared.frontmostApplication?.localizedName }
+            sourceApp: { NSWorkspace.shared.frontmostApplication?.localizedName },
+            sourceBundleID: { NSWorkspace.shared.frontmostApplication?.bundleIdentifier }
         )
         monitor.isPaused = settings.isPaused
         // PanelModel takes over store.onChange; nothing else may set it.
@@ -355,6 +358,30 @@ import os
         }
     }
 
+    /// Secrets leave the history ten minutes after they were copied. A
+    /// timer runs only while there are any, and keeps the panel's
+    /// minutes current while it is open.
+    private func startSecretTimer() {
+        guard secretTimer == nil else { return }
+        let timer = Timer(timeInterval: 15, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.expireSecrets() }
+        }
+        timer.tolerance = 5
+        RunLoop.main.add(timer, forMode: .common)
+        secretTimer = timer
+    }
+
+    private func expireSecrets() {
+        let expired = store.expireSecrets(now: Date())
+        if !expired, panel.isVisible {
+            model.refreshTimes()
+        }
+        if !store.items.contains(where: \.isSecret) {
+            secretTimer?.invalidate()
+            secretTimer = nil
+        }
+    }
+
     private func applySettings() {
         if store.limit != settings.historyLimit {
             store.limit = settings.historyLimit
@@ -387,6 +414,9 @@ import os
         if panel.isVisible {
             model.moveSelection(by: 1)
         } else {
+            // A secret whose time ran out since the last check must not
+            // show for the seconds until the next one.
+            store.expireSecrets(now: Date())
             panel.show()
         }
     }
@@ -414,7 +444,7 @@ import os
         let alert = NSAlert()
         alert.messageText = "Clear clipboard history?"
         alert.informativeText = "This clears \(count == 1 ? "1 item" : "all \(count) items"). "
-            + "Settings can restore them for 24 hours."
+            + "Settings can restore them for 24 hours. Secrets are not kept."
         alert.addButton(withTitle: "Clear History")
         alert.addButton(withTitle: "Cancel")
         NSApp.activate(ignoringOtherApps: true)

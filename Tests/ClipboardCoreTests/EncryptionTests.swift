@@ -314,6 +314,7 @@ func permissions(_ url: URL) -> Int? {
         let png = content(TypedData(type: TypeName.png, data: makePNG(width: 80, height: 40)))
         unsaved.add(text("first"), sourceApp: "Notes", now: at(1))
         let image = unsaved.add(png, sourceApp: "Preview", now: at(2))
+        let secret = unsaved.add(text(fakeAnthropicKey), sourceApp: nil, secret: true, now: at(3))
 
         let root = temporaryRoot()
         let saved = HistoryStore(storage: ItemStorage(root: root, cipher: testCipher))
@@ -321,8 +322,9 @@ func permissions(_ url: URL) -> Int? {
         #expect(saved.items.map(\.id) == unsaved.items.map(\.id))
         #expect(saved.fullContent(for: image.id) == png)
         #expect(ItemStorage(root: root, cipher: testCipher).thumbnail(for: image.id) != nil)
+        #expect(saved.items[0].expiresAt == secret.expiresAt)
 
-        // Saved for good under the new key.
+        // Saved for good under the new key, except the secret.
         let reopened = HistoryStore(storage: ItemStorage(root: root, cipher: testCipher))
         #expect(reopened.items.map(\.content) == [png.lightened, text("first")])
         #expect(reopened.fullContent(for: image.id) == png)

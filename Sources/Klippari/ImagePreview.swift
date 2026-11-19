@@ -53,7 +53,7 @@ import ClipboardCore
     /// Shows the item's image beside `card`, centred on its row's middle
     /// when known, or hides the preview when there is no image or no room.
     func show(_ item: ClipItem?, beside card: NSRect, rowMidY: CGFloat?, in visible: NSRect, parent: NSWindow) {
-        guard let item, let info = item.imageInfo,
+        guard let item, !item.isSecret, let info = item.imageInfo,
               let frame = PreviewPlacement.frame(
                   imageSize: CGSize(width: info.width, height: info.height), card: card,
                   rowMidY: rowMidY, in: visible

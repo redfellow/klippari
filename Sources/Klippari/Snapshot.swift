@@ -23,7 +23,10 @@ import SwiftUI
         let store = HistoryStore(storage: storage)
         let now = Date()
         for sample in samples().reversed() {
-            store.add(sample.content, sourceApp: sample.app, now: now.addingTimeInterval(-sample.age))
+            store.add(
+                sample.content, sourceApp: sample.app, secret: sample.secret,
+                now: now.addingTimeInterval(-sample.age)
+            )
         }
         let model = PanelModel(store: store, now: { now })
         model.open()
@@ -87,6 +90,7 @@ import SwiftUI
         var content: ClipContent
         var app: String
         var age: TimeInterval
+        var secret = false
     }
 
     private static func entry(_ pairs: (String, String)...) -> ClipContent {
@@ -100,6 +104,20 @@ import SwiftUI
             .joined(separator: "\n")
         return [
             Sample(content: entry((TypeName.plainText, "git rebase --onto main feature~3 feature")), app: "Ghostty", age: 5),
+            // Made-up keys, built in pieces so they never look like real
+            // ones to secret scanners.
+            Sample(
+                content: entry((TypeName.plainText, "sk-ant-" + "api03-" + "EXAMPLEexampleEXAMPLEexample" + "Q4fZ")),
+                app: "Ghostty", age: 60, secret: true
+            ),
+            Sample(
+                content: entry((TypeName.plainText, "sk-ant-" + "api03-" + "EXAMPLEexampleEXAMPLEexample" + "m81K")),
+                app: "Ghostty", age: 200, secret: true
+            ),
+            Sample(
+                content: entry((TypeName.plainText, "correct horse battery staple")),
+                app: "Passwords", age: 300, secret: true
+            ),
             Sample(content: ClipContent(entries: [PasteboardEntry(types: [
                 TypedData(type: TypeName.png, data: samplePNG()),
             ])]), app: "Preview", age: 120),

@@ -169,12 +169,17 @@ public struct ClipItem: Identifiable, Equatable, Sendable {
     public var imageInfo: ImageInfo?
     /// Hash of the full content, computed once when the item is created.
     public let contentHash: String
+    /// Set for a secret: it is kept in memory only, with its full content,
+    /// and leaves the history at this time. Nil for ordinary items.
+    public var expiresAt: Date?
+
+    public var isSecret: Bool { expiresAt != nil }
 
     /// Pass `contentHash` when `content` is a lightened copy; otherwise it
     /// is computed from `content`.
     public init(
         id: UUID, capturedAt: Date, lastUsedAt: Date, sourceApp: String?,
-        content: ClipContent, imageInfo: ImageInfo?, contentHash: String? = nil
+        content: ClipContent, imageInfo: ImageInfo?, contentHash: String? = nil, expiresAt: Date? = nil
     ) {
         self.id = id
         self.capturedAt = capturedAt
@@ -183,5 +188,6 @@ public struct ClipItem: Identifiable, Equatable, Sendable {
         self.content = content
         self.imageInfo = imageInfo
         self.contentHash = contentHash ?? content.contentHash
+        self.expiresAt = expiresAt
     }
 }

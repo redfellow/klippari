@@ -357,13 +357,27 @@ private struct RowView: View {
                 .frame(width: 28, height: 28)
 
             title
-                .lineLimit(1)
-                .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
+
+            if let expiresIn = row.expiresIn {
+                // A secret: masked, and gone from the history in this long.
+                HStack(spacing: 3) {
+                    Image(systemName: "lock.fill")
+                    Text(expiresIn).monospacedDigit()
+                }
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(secondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(primary.opacity(0.1), in: Capsule())
+                .fixedSize()
+                .help("Kept in memory only and removed after 10 minutes")
+            }
 
             HStack(spacing: 6) {
                 Text(row.sourceApp)
                     .lineLimit(1)
+                    .truncationMode(.middle)
                     .frame(width: appWidth, alignment: .leading)
                 Text(row.age)
                     .monospacedDigit()
@@ -380,15 +394,27 @@ private struct RowView: View {
         )
     }
 
-    private var title: Text {
-        let main = Text(row.presentation.title)
-            .font(.system(size: 15, weight: isSelected ? .medium : .regular))
-            .foregroundStyle(primary)
-        guard let tag = row.presentation.tag else { return main }
-        // An image's tag follows its title directly; other tags are set
-        // off with a dot, as in the mock.
-        let separator = row.presentation.kind == .image ? " " : " · "
-        return main + Text(separator + tag).font(.system(size: 15)).foregroundStyle(secondary)
+    /// A title too long for the row loses its middle, so both the start
+    /// and the end (a file's extension, a key's last characters) stay in
+    /// view. The tag always shows in full.
+    private var title: some View {
+        HStack(spacing: 0) {
+            Text(row.presentation.title)
+                .font(.system(size: 15, weight: isSelected ? .medium : .regular))
+                .foregroundStyle(primary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            if let tag = row.presentation.tag {
+                // An image's tag follows its title directly; other tags are
+                // set off with a dot, as in the mock.
+                let separator = row.presentation.kind == .image ? " " : " · "
+                Text(separator + tag)
+                    .font(.system(size: 15))
+                    .foregroundStyle(secondary)
+                    .lineLimit(1)
+                    .fixedSize()
+            }
+        }
     }
 
     @ViewBuilder private var icon: some View {

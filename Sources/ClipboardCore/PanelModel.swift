@@ -12,6 +12,8 @@ import Observation
         /// Empty when the source app is unknown.
         public var sourceApp: String
         public var age: String
+        /// For a secret, how long until it leaves the history ('9 min').
+        public var expiresIn: String?
     }
 
     public enum EscapeResult: Sendable {
@@ -112,6 +114,11 @@ import Observation
         store.remove(removed)
     }
 
+    /// Brings ages and secrets' remaining times up to date.
+    public func refreshTimes() {
+        rebuild(keepingSelection: true)
+    }
+
     public func escape() -> EscapeResult {
         if query.isEmpty { return .close }
         query = ""
@@ -134,7 +141,8 @@ import Observation
                 number: built.count < 9 ? built.count + 1 : nil,
                 presentation: presentation,
                 sourceApp: item.sourceApp ?? "",
-                age: ageString(from: item.lastUsedAt, now: date)
+                age: ageString(from: item.lastUsedAt, now: date),
+                expiresIn: item.expiresAt.map { remainingString(until: $0, now: date) }
             ))
         }
         rows = built

@@ -50,6 +50,35 @@ without the mouse.
 - Capture can be paused. Nothing copied while paused is recorded, also
   not after resuming. Pause is not remembered across restarts.
 
+## Secrets
+
+- A copy is a secret when it comes from a password app (Keychain
+  Access, Passwords, Bitwarden, 1Password, KeePassXC, by bundle
+  identifier), or when its text contains a credential in a well-known
+  format: GitHub tokens (`ghp_` and the other `gh*_`, `github_pat_`),
+  OpenAI and Anthropic keys (`sk-`, `sk-ant-`), AWS access key IDs
+  (`AKIA`, `ASIA`), Slack tokens (`xox*-`), JWTs, and private keys
+  (`-----BEGIN … PRIVATE KEY-----`, PGP's `… PRIVATE KEY BLOCK-----`). There is no entropy guess. The
+  source app is the copy's `org.nspasteboard.source` when it has one,
+  otherwise the frontmost app.
+- A secret is never written to disk. It is kept in memory with its full
+  content and leaves the history 10 minutes after it was copied, or
+  when the app quits. Pasting it does not extend that; copying it again
+  does. Content already in the history that is copied again as a secret
+  is taken off the disk.
+- Clearing the history drops secrets; they are never archived.
+- Its row is masked. The first credential on the line keeps its prefix
+  and, when long enough, its last four characters (`sk-ant-••••••Q4fZ`),
+  so two of the same kind can be told apart. Before it only a variable
+  name stays (`export GH_TOKEN=`); any other text before or after it is
+  replaced by dots, since a secret often sits beside another one. A line
+  with no known credential is masked whole, showing at most an eighth
+  of it, and no more than three characters, at each end. A line that is
+  exactly a private key's BEGIN or END header stays. A lock badge shows
+  the minutes left.
+- The filter matches only what a secret's row shows, and the word
+  'secret'. The image preview never shows a secret.
+
 ## Storage
 
 - History lives in `~/Library/Application Support/Klippari/items.noindex`
@@ -73,9 +102,9 @@ without the mouse.
   read and will be deleted, it deletes every sealed item in
   `items.noindex` and the archive, makes a new key and goes on saving,
   without a restart; what is in the history then is saved under the
-  new key, while what was cleared during the run is not kept. Items
-  still in plain form need no key: they are kept and encrypted with
-  the new one.
+  new key, secrets excepted, while what was cleared during the run is
+  not kept. Items still in plain form need no key: they are kept and
+  encrypted with the new one.
   If the key has come back by then, nothing is deleted and the saved
   history opens with it.
 - A `key-check` file in the Klippari folder, sealed with the key, is
@@ -150,6 +179,8 @@ without the mouse.
   of something already in the history is dropped. An item that could
   not be moved stays in the archive too. A clear's folder is removed
   once it is empty, and `items-archive.noindex` once no clear is left.
+  Secrets are never archived: clearing drops them, and they are not
+  counted.
 - Each clear is deleted 24 hours after it was made. Klippari checks at
   launch, when the Mac wakes from sleep, and when a single timer set
   for the oldest clear's time fires (it may fire up to a minute late,
@@ -224,7 +255,9 @@ Each row has four lanes:
 
 1. Number, 1 to 9 for the first nine visible rows, blank after that.
 2. An icon for the kind of item, or a thumbnail for an image.
-3. The title on one truncated line, followed by a grey tag.
+3. The title on one line, followed by a grey tag. A title too long for
+   the row loses its middle, so its start and end stay in view. A
+   secret has a lock badge with its minutes left after it.
 4. Source app name, left-aligned, and age, right-aligned. The app
    column is as wide as the longest name shown, up to 110 points.
 
