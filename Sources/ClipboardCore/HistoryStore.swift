@@ -310,7 +310,7 @@ public struct RestoreResult: Equatable, Sendable {
     /// how many can be restored. An item kept only in memory, because saving
     /// it failed, is saved into the archive. An item that could not be
     /// moved or saved stays in the history and is not counted; 0 means
-    /// nothing changed. If the archive has grown past
+    /// nothing can be restored, though secrets may have gone. If the archive has grown past
     /// `archiveSizeLimit`, the oldest clears are deleted.
     @discardableResult
     public func archiveAll(now: Date) -> Int {

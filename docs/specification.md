@@ -325,7 +325,7 @@ that matches nothing it shows 'No matches'.
 | Cmd+1 to Cmd+9 | Paste that row of the visible list, as copied. |
 | Any typing | Edit the filter. |
 | Cmd+Backspace | Remove the selected item from the history. The selection moves to the next row, or the previous one at the end. |
-| Shift+Cmd+Backspace | Clear the whole history into the archive, without asking, since it can be restored. The notice says 'Cleared N items. Restore them in Settings.' |
+| Shift+Cmd+Backspace | Clear the whole history into the archive, without asking, since it can be restored. The notice says 'Cleared N items. Restore them in Settings.', and how many secrets were removed when there were any, since they cannot be restored. The menu's Clear History asks first and counts the two apart in the same way. |
 | Esc | Clear a non-empty filter; otherwise close the panel without pasting. |
 
 The filter matches case-insensitively against an item's text, its file

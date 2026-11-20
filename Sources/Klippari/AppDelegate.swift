@@ -469,12 +469,12 @@ import os
     }
 
     private func confirmClearHistory() {
-        let count = store.items.count
-        guard count > 0 else { return }
+        let secrets = store.items.filter(\.isSecret).count
+        let saved = store.items.count - secrets
+        guard saved + secrets > 0 else { return }
         let alert = NSAlert()
         alert.messageText = "Clear clipboard history?"
-        alert.informativeText = "This clears \(count == 1 ? "1 item" : "all \(count) items"). "
-            + "Settings can restore them for 24 hours. Secrets are not kept."
+        alert.informativeText = Self.clearWarning(saved: saved, secrets: secrets)
         alert.addButton(withTitle: "Clear History")
         alert.addButton(withTitle: "Cancel")
         NSApp.activate(ignoringOtherApps: true)
@@ -483,12 +483,38 @@ import os
         }
     }
 
+    /// What the alert before clearing says: what can be restored, and
+    /// that secrets cannot.
+    static func clearWarning(saved: Int, secrets: Int) -> String {
+        let items = saved == 1 ? "1 item" : "\(saved) items"
+        let secretsText = secrets == 1 ? "1 secret" : "\(secrets) secrets"
+        if secrets == 0 {
+            return "This clears \(saved == 1 ? items : "all " + items). Settings can restore them for 24 hours."
+        }
+        if saved == 0 {
+            return "This removes \(secretsText), which cannot be restored."
+        }
+        return "This clears \(items), which Settings can restore for 24 hours, "
+            + "and removes \(secretsText), which cannot be restored."
+    }
+
     /// Shift+Cmd+Backspace in the panel: no confirmation, since the
     /// cleared history can be restored; the notice says how.
     private func clearFromPanel() {
+        let secrets = store.items.filter(\.isSecret).count
         let count = archiveHistory()
-        guard count > 0 else { return }
-        model.notice = "Cleared \(count == 1 ? "1 item" : "\(count) items"). Restore them in Settings."
+        let gone = secrets - store.items.filter(\.isSecret).count
+        switch (count, gone) {
+        case (0, 0):
+            return
+        case (_, 0):
+            model.notice = "Cleared \(count == 1 ? "1 item" : "\(count) items"). Restore them in Settings."
+        case (0, _):
+            model.notice = "Removed \(gone == 1 ? "1 secret" : "\(gone) secrets"); secrets are not kept."
+        default:
+            model.notice = "Cleared \(count == 1 ? "1 item" : "\(count) items"), restorable in Settings, "
+                + "and removed \(gone == 1 ? "1 secret" : "\(gone) secrets")."
+        }
         model.noticeLink = nil
     }
 
