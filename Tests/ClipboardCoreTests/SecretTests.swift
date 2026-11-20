@@ -136,6 +136,19 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         #expect(itemsOnDisk() == 1)
     }
 
+    @Test func addingASecretSaysWhetherTheClearedHistoryChanged() {
+        let store = makeStore()
+        var calls: [Bool] = []
+        store.onSecretAdded = { calls.append($0) }
+        store.add(text(fakeAnthropicKey), sourceApp: nil, secret: true, now: at(0))
+        store.add(richCopy("hunter2-but-longer"), sourceApp: "Notes", now: at(1))
+        store.add(text("other"), sourceApp: "Notes", now: at(2))
+        store.archiveAll(now: at(3))
+        store.add(text(fakeGitHubToken), sourceApp: nil, secret: true, now: at(4))
+        store.add(text("hunter2-but-longer"), sourceApp: "Passwords", secret: true, now: at(5))
+        #expect(calls == [false, false, true])
+    }
+
     @Test func clearingDropsSecretsAndArchivesTheRest() {
         let store = makeStore()
         store.add(text("plain"), sourceApp: nil, now: at(0))

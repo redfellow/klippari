@@ -91,8 +91,8 @@ public struct RestoreResult: Equatable, Sendable {
     /// Called after every mutation.
     public var onChange: (() -> Void)?
     /// Called when a secret joins the history, so its expiry can be
-    /// timed.
-    public var onSecretAdded: (() -> Void)?
+    /// timed; true when that took items out of the cleared history.
+    public var onSecretAdded: ((_ clearedHistoryChanged: Bool) -> Void)?
     /// Texts the user said are not secrets (`keepAsOrdinary`), by
     /// `secretKey`. For this run only.
     private var notSecrets: Set<String> = []
@@ -178,7 +178,7 @@ public struct RestoreResult: Equatable, Sendable {
         let secret = !notSecrets.contains(key)
             && (secret || items.contains { $0.isSecret && Self.secretKey($0) == key })
         if secret {
-            deleteArchivedCopies(matching: key)
+            let archiveChanged = deleteArchivedCopies(matching: key)
             let earlier = items.filter { Self.secretKey($0) == key }
             for old in earlier where !old.isSecret {
                 storage.delete(id: old.id)
@@ -193,7 +193,7 @@ public struct RestoreResult: Equatable, Sendable {
             )
             items.insert(item, at: 0)
             onChange?()
-            onSecretAdded?()
+            onSecretAdded?(archiveChanged)
             return item
         }
         if let index = items.firstIndex(where: { $0.contentHash == hash }) {
@@ -227,12 +227,13 @@ public struct RestoreResult: Equatable, Sendable {
     /// be read whole is left out: it could not be pasted either.
     public func adopt(_ other: HistoryStore) {
         let present = Set(items.map(\.contentHash))
+        var archiveChanged = false
         for var item in other.items where !present.contains(item.contentHash) {
             let full = other.fullContent(for: item.id) ?? item.content
             guard full.isComplete else { continue }
             item.content = full
             if item.isSecret {
-                deleteArchivedCopies(matching: Self.secretKey(item))
+                if deleteArchivedCopies(matching: Self.secretKey(item)) { archiveChanged = true }
             } else {
                 do {
                     try storage.save(item)
@@ -246,7 +247,7 @@ public struct RestoreResult: Equatable, Sendable {
         items.sort { $0.lastUsedAt > $1.lastUsedAt }
         trim()
         onChange?()
-        if items.contains(where: \.isSecret) { onSecretAdded?() }
+        if items.contains(where: \.isSecret) { onSecretAdded?(archiveChanged) }
     }
 
     /// Turns a secret into an ordinary item, saved like any other, for
@@ -357,13 +358,20 @@ public struct RestoreResult: Equatable, Sendable {
     /// Deletes every item in the cleared history that is the secret with
     /// this key, so that it cannot be restored from there as a saved
     /// item. A clear's date is in its folder's name, so its time left is
-    /// kept.
-    private func deleteArchivedCopies(matching key: String) {
+    /// kept. Opening the cleared history means decrypting every item in
+    /// it, so nothing is opened when there is none. Returns whether any
+    /// item was deleted.
+    @discardableResult
+    private func deleteArchivedCopies(matching key: String) -> Bool {
         let archive = archive
+        guard !archive.clears().isEmpty else { return false }
+        var deleted = false
         for old in archive.items() where Self.secretKey(old.item) == key {
             old.clear.storage.delete(id: old.item.id)
+            deleted = true
         }
-        archive.removeEmpty()
+        if deleted { archive.removeEmpty() }
+        return deleted
     }
 
     /// What makes two copies the same secret: a hash of their text when

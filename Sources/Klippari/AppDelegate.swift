@@ -122,10 +122,11 @@ import os
         monitor?.stop()
         panel?.hide()
         store = HistoryStore(storage: storage, limit: settings.historyLimit, sealingPlainItems: false)
-        store.onSecretAdded = { [weak self] in
+        store.onSecretAdded = { [weak self] clearedHistoryChanged in
             self?.scheduleSecretCheck()
-            // A secret also takes its copies out of the cleared history.
-            self?.showArchive()
+            // A secret also takes its copies out of the cleared history;
+            // a note from the last Restore still holds.
+            if clearedHistoryChanged { self?.refreshArchive() }
         }
         if let previous { store.adopt(previous) }
         store.expireArchive(now: Date())
@@ -540,8 +541,14 @@ import os
     /// Brings the Cleared history row in Settings, and the timer that
     /// deletes it, up to date with the cleared history.
     private func showArchive(note: String? = nil) {
-        settings.archive = store.archiveSummary
+        refreshArchive()
         settings.restoreNote = note
+    }
+
+    /// Updates the Cleared history row and its timer, leaving the note
+    /// from the last Restore as it is.
+    private func refreshArchive() {
+        settings.archive = store.archiveSummary
         statusItem?.unreadable = unreadableItems.count
         scheduleExpiry()
     }
