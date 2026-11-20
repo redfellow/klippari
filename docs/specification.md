@@ -60,7 +60,13 @@ without the mouse.
   (`AKIA`, `ASIA`), Slack tokens (`xox*-`), JWTs, and private keys
   (`-----BEGIN … PRIVATE KEY-----`, PGP's `… PRIVATE KEY BLOCK-----`). There is no entropy guess. The
   source app is the copy's `org.nspasteboard.source` when it has one,
-  otherwise the frontmost app.
+  otherwise the app that was frontmost when the copy was made: when
+  another app is activated, the clipboard is checked once more before
+  the switch counts, so a copy made just before Cmd+Tab is credited to
+  the app it was made in. A copy seen while a password app has been
+  frontmost at any moment since the last regular check (every 0.5
+  seconds) is a secret whatever its source; a wrongly masked row costs
+  less than a password shown in clear.
 - A secret is never written to disk. It is kept in memory with its full
   content and leaves the history 10 minutes after it was copied, or
   when the app quits. Pasting it does not extend that; copying it again

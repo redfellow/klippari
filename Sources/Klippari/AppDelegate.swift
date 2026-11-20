@@ -64,6 +64,20 @@ import os
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.expire() }
         }
+        watchAppSwitches()
+    }
+
+    /// A copy belongs to the app that was in front when it was made: on
+    /// every switch the monitor polls once more before the new app counts,
+    /// so a password copied just before Cmd+Tab is still a secret.
+    private func watchAppSwitches() {
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+        ) { [weak self] notification in
+            let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            let source = SourceApp(name: app?.localizedName, bundleID: app?.bundleIdentifier)
+            MainActor.assumeIsolated { self?.monitor?.appDidActivate(source) }
+        }
     }
 
     /// Builds the history, the monitor and the panel on `storage`. Called

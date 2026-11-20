@@ -53,13 +53,17 @@ public enum Secrets {
     public static let dots = "••••••"
 
     /// Whether this copy should be kept as a secret. `frontmostBundleID`
-    /// is the app that was in front when the copy was seen; the copy's own
+    /// is the app that was in front when the copy was made; the copy's own
     /// source marker wins over it when present.
     public static func isSecret(_ content: ClipContent, frontmostBundleID: String?) -> Bool {
         let declared = content.data(for: sourceType).flatMap { String(data: $0, encoding: .utf8) }
-        if let source = declared ?? frontmostBundleID, passwordApps.contains(source) { return true }
+        if isPasswordApp(declared ?? frontmostBundleID) { return true }
         guard let string = content.plainString else { return false }
         return containsCredential(string)
+    }
+
+    public static func isPasswordApp(_ bundleID: String?) -> Bool {
+        bundleID.map(passwordApps.contains) ?? false
     }
 
     public static func containsCredential(_ string: String) -> Bool {

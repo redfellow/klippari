@@ -241,20 +241,94 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         #expect(remainingString(until: at(600), now: at(541)) == "1 min")
         #expect(remainingString(until: at(600), now: at(599)) == "1 min")
     }
+}
+
+/// The app in front, which a test changes as the user switches apps. On
+/// the main actor, so the monitor's closures can read it while the test
+/// changes it.
+@MainActor final class FrontmostApp {
+    private(set) var app: SourceApp
+
+    init(_ name: String, _ bundleID: String) {
+        app = SourceApp(name: name, bundleID: bundleID)
+    }
+
+    /// Brings another app to the front and tells the monitor, as the
+    /// workspace's activation notification does.
+    func switchTo(_ name: String, _ bundleID: String, monitor: ClipboardMonitor) {
+        app = SourceApp(name: name, bundleID: bundleID)
+        monitor.appDidActivate(app)
+    }
+}
+
+@MainActor @Suite struct SecretMonitorTests {
+    let pasteboard = FakePasteboard()
+    let store = HistoryStore(storage: ItemStorage(root: temporaryRoot(), cipher: testCipher))
+
+    func makeMonitor(_ front: FrontmostApp) -> ClipboardMonitor {
+        ClipboardMonitor(
+            pasteboard: pasteboard, store: store,
+            sourceApp: { front.app.name }, sourceBundleID: { front.app.bundleID }, now: { at(0) }
+        )
+    }
 
     @Test func monitorMarksCopiesFromPasswordApps() {
-        let pasteboard = FakePasteboard()
-        let store = HistoryStore(storage: ItemStorage(root: temporaryRoot(), cipher: testCipher))
-        var frontmost = "com.apple.keychainaccess"
-        let monitor = ClipboardMonitor(
-            pasteboard: pasteboard, store: store, sourceApp: { "Keychain Access" },
-            sourceBundleID: { frontmost }, now: { at(0) }
-        )
+        let front = FrontmostApp("Keychain Access", "com.apple.keychainaccess")
+        let monitor = makeMonitor(front)
         pasteboard.copy(text("correct horse battery staple"))
         monitor.tick()
-        frontmost = "com.apple.Notes"
+        front.switchTo("Notes", "com.apple.Notes", monitor: monitor)
+        monitor.tick()
         pasteboard.copy(text("shopping list"))
         monitor.tick()
         #expect(store.items.map(\.isSecret) == [false, true])
+        #expect(store.items.map(\.sourceApp) == ["Notes", "Keychain Access"])
+    }
+
+    @Test func aPasswordCopiedJustBeforeSwitchingAwayIsASecret() {
+        let front = FrontmostApp("Passwords", "com.apple.Passwords")
+        let monitor = makeMonitor(front)
+        pasteboard.copy(text("correct horse battery staple"))
+        // Cmd+Tab before the next poll.
+        front.switchTo("Safari", "com.apple.Safari", monitor: monitor)
+        monitor.tick()
+        #expect(store.items.count == 1)
+        #expect(store.items[0].isSecret)
+        #expect(store.items[0].sourceApp == "Passwords")
+    }
+
+    @Test func aCopySeenOnlyAfterLeavingAPasswordAppIsASecret() {
+        let front = FrontmostApp("Passwords", "com.apple.Passwords")
+        let monitor = makeMonitor(front)
+        front.switchTo("Safari", "com.apple.Safari", monitor: monitor)
+        // The password app's copy lands after the switch was handled.
+        pasteboard.copy(text("correct horse battery staple"))
+        monitor.tick()
+        #expect(store.items.map(\.isSecret) == [true])
+        // From the next poll on, Safari's copies are its own.
+        pasteboard.copy(text("shopping list"))
+        monitor.tick()
+        #expect(store.items.map(\.isSecret) == [false, true])
+    }
+
+    @Test func aCopyMadeBeforeSwitchingToAPasswordAppIsNotASecret() {
+        let front = FrontmostApp("Notes", "com.apple.Notes")
+        let monitor = makeMonitor(front)
+        pasteboard.copy(text("shopping list"))
+        front.switchTo("Passwords", "com.apple.Passwords", monitor: monitor)
+        monitor.tick()
+        #expect(store.items.map(\.isSecret) == [false])
+        #expect(store.items[0].sourceApp == "Notes")
+    }
+
+    @Test func aSwitchWhilePausedRecordsNothing() {
+        let front = FrontmostApp("Passwords", "com.apple.Passwords")
+        let monitor = makeMonitor(front)
+        monitor.isPaused = true
+        pasteboard.copy(text("correct horse battery staple"))
+        front.switchTo("Safari", "com.apple.Safari", monitor: monitor)
+        monitor.isPaused = false
+        monitor.tick()
+        #expect(store.items.isEmpty)
     }
 }
