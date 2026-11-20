@@ -420,6 +420,27 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         )
     }
 
+    @Test func aSecretIsPastedMarkedAsConcealed() {
+        let front = FrontmostApp("Passwords", "com.apple.Passwords")
+        let monitor = makeMonitor(front)
+        let styled = content(typed(TypeName.plainText, "hunter2-but-longer"), typed(TypeName.rtf, "{rtf}"))
+        pasteboard.copy(styled)
+        monitor.tick()
+        monitor.paste(store.items[0], plainText: false)
+        monitor.paste(store.items[0], plainText: true)
+        front.switchTo("Notes", "com.apple.Notes", monitor: monitor)
+        monitor.tick()
+        pasteboard.copy(text("plain"))
+        monitor.tick()
+        #expect(store.items.map(\.isSecret) == [false, true])
+        monitor.paste(store.items[0], plainText: false)
+        #expect(pasteboard.written == [
+            styled.marked(TypeName.concealed),
+            text("hunter2-but-longer").marked(TypeName.concealed),
+            text("plain"),
+        ])
+    }
+
     @Test func monitorMarksCopiesFromPasswordApps() {
         let front = FrontmostApp("Keychain Access", "com.apple.keychainaccess")
         let monitor = makeMonitor(front)

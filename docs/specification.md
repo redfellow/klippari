@@ -69,7 +69,9 @@ without the mouse.
   less than a password shown in clear.
 - A secret is never written to disk. It is kept in memory with its full
   content and leaves the history 10 minutes after it was copied, or
-  when the app quits. Pasting it does not extend that; copying it again
+  when the app quits. Pasting it puts it on the clipboard marked as
+  concealed (`org.nspasteboard.ConcealedType`), so that other clipboard
+  managers leave it out; it does not extend its time. Copying it again
   does. A copy with the same text as a secret in the history is that
   secret again, from whatever app. Adding a secret takes every item
   with its text out of the history and off the disk, even one copied

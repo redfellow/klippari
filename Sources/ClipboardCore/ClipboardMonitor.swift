@@ -101,11 +101,14 @@ public struct SourceApp: Equatable, Sendable {
     }
 
     /// Puts a history item back on the clipboard without recording that
-    /// write as a new copy, and moves the item to the top.
+    /// write as a new copy, and moves the item to the top. A secret goes
+    /// back marked as concealed, so that other clipboard managers and
+    /// apps following nspasteboard.org leave it out of their histories.
     public func paste(_ item: ClipItem, plainText: Bool) {
         // The history holds lightened content; the full bytes come from disk.
         let full = store.fullContent(for: item.id) ?? item.content
-        let content = plainText ? (full.plainTextOnly ?? full.forPasting) : full.forPasting
+        var content = plainText ? (full.plainTextOnly ?? full.forPasting) : full.forPasting
+        if item.isSecret { content = content.marked(TypeName.concealed) }
         lastSeenCount = pasteboard.write(content)
         store.markUsed(item.id, now: now())
     }

@@ -21,6 +21,8 @@ Expected behaviour is defined in `specification.md`.
       Cmd+S shows the row in full, and it is still there after a
       restart.
 - [ ] A URL with an `sk-some-long-slug` path is not masked.
+- [ ] A secret pasted from the panel is not recorded by another
+      clipboard manager that honours nspasteboard.org (Maccy, Clipy).
 - [ ] A long line and a long file name lose their middle, not their
       end.
 - [ ] Copying the same thing twice leaves one row, moved to the top.
