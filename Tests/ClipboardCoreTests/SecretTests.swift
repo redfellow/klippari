@@ -256,6 +256,18 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         #expect(store.archiveSummary == nil)
     }
 
+    @Test func takingOverASecretTakesTheSavedCopyOffTheDisk() {
+        let store = makeStore()
+        store.add(richCopy("hunter2-but-longer"), sourceApp: "Notes", now: at(0))
+        store.add(text("other"), sourceApp: "Notes", now: at(1))
+        let unsaved = HistoryStore(storage: ItemStorage(root: temporaryRoot(), cipher: testCipher))
+        unsaved.add(text("hunter2-but-longer"), sourceApp: "Passwords", secret: true, now: at(2))
+        store.adopt(unsaved)
+        #expect(itemsOnDisk() == 1)
+        #expect(store.items.map(\.isSecret) == [true, false])
+        #expect(makeStore().items.map(\.content) == [text("other")])
+    }
+
     @Test func secretsHaveNoThumbnail() {
         let store = makeStore()
         let png = content(TypedData(type: TypeName.png, data: makePNG(width: 20, height: 20)))

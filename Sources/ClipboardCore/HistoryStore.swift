@@ -226,21 +226,30 @@ public struct RestoreResult: Equatable, Sendable {
     /// and the history size applies. An item whose content can no longer
     /// be read whole is left out: it could not be pasted either.
     public func adopt(_ other: HistoryStore) {
-        let present = Set(items.map(\.contentHash))
         var archiveChanged = false
-        for var item in other.items where !present.contains(item.contentHash) {
+        notSecrets.formUnion(other.notSecrets)
+        // Secrets first, as `add` takes them: each takes every item with
+        // its text out of this history, off the disk and out of the
+        // cleared history, even one already saved here.
+        for item in other.items where item.isSecret && item.content.isComplete {
+            let key = Self.secretKey(item)
+            for old in items where !old.isSecret && Self.secretKey(old) == key {
+                storage.delete(id: old.id)
+            }
+            items.removeAll { Self.secretKey($0) == key }
+            if deleteArchivedCopies(matching: key) { archiveChanged = true }
+            items.append(item)
+        }
+        let present = Set(items.map(\.contentHash))
+        for var item in other.items where !item.isSecret && !present.contains(item.contentHash) {
             let full = other.fullContent(for: item.id) ?? item.content
             guard full.isComplete else { continue }
             item.content = full
-            if item.isSecret {
-                if deleteArchivedCopies(matching: Self.secretKey(item)) { archiveChanged = true }
-            } else {
-                do {
-                    try storage.save(item)
-                    item.content = full.lightened
-                } catch {
-                    Self.logger.error("Could not save item: \(error.localizedDescription, privacy: .public)")
-                }
+            do {
+                try storage.save(item)
+                item.content = full.lightened
+            } catch {
+                Self.logger.error("Could not save item: \(error.localizedDescription, privacy: .public)")
             }
             items.append(item)
         }
