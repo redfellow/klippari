@@ -324,7 +324,7 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
     @Test func aSecretRowShowsNothingButItsMaskedLine() {
         let link = row(text("https://user:hunter2@example.com/"))
         #expect(link.kind == .text)
-        #expect(link.title == Secrets.dots)
+        #expect(link.title == "https://user:" + Secrets.dots + " " + Secrets.dots)
         #expect(link.tag == nil)
         let lines = row(text("# deploy\nexport GH_TOKEN=\(fakeGitHubToken)\n"))
         #expect(lines.tag == nil)
@@ -351,6 +351,34 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         }
     }
 
+    @Test func moreCredentialFormats() {
+        let x = { (n: Int) in String(repeating: "x", count: n) }
+        let credentials = [
+            "sk_" + "live_" + "Ab3" + x(24), // Stripe
+            "rk_" + "test_" + "Ab3" + x(24),
+            "gl" + "pat-" + x(20), // GitLab
+            "AI" + "za" + x(35), // Google
+            "np" + "m_" + x(36),
+            "h" + "f_" + x(34), // Hugging Face
+            "S" + "G." + x(22) + "." + x(43), // SendGrid
+            "AGE-SECRET-" + "KEY-1" + String(repeating: "Q", count: 58),
+            "aws_secret_" + "access_key = " + String(repeating: "aB3/", count: 10),
+            "xa" + "pp-" + "1-A0123-" + x(10), // Slack app token
+            "Authorization: Bearer " + x(30),
+            "https://deploy:" + "hunter2-but-longer" + "@example.com/repo.git",
+        ]
+        for credential in credentials {
+            #expect(Secrets.containsCredential(credential), "\(credential.prefix(10))")
+        }
+    }
+
+    @Test func aPasswordInAURLShowsNoneOfItsCharacters() {
+        let masked = Secrets.mask("https://deploy:" + "hunter2-but-longer" + "@example.com/repo.git")
+        #expect(masked == "https://deploy:" + Secrets.dots + " " + Secrets.dots)
+        let stripe = Secrets.mask("sk_" + "live_" + "Ab3" + String(repeating: "x", count: 21) + "Wq7Z")
+        #expect(stripe == "sk_live_" + Secrets.dots + "Wq7Z")
+    }
+
     @Test func ordinaryTextIsNotASecret() {
         let ordinary = [
             "Meeting notes: Q4 planning",
@@ -361,6 +389,10 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
             "https://shop.example/sk-hynix-platinum-p41-2tb-ssd", // a slug
             "<div class=\"sk-loading-spinner-container-wide\">", // a CSS class
             "sk-" + String(repeating: "abc1", count: 10), // no capitals
+            "ssh://git@github.com/org/repo.git", // a user, no password
+            "git@github.com:org/repo.git",
+            "Bearer tokens expire after an hour.",
+            "AKIA is how AWS key IDs start",
             "git rebase --onto main feature~3 feature",
         ]
         for string in ordinary {

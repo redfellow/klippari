@@ -27,10 +27,14 @@ public enum Secrets {
         /// Detection only: never masked in place (a private key's header
         /// line is not the secret).
         let maskable: Bool
+        /// Whether the mask keeps the last few characters, to tell two
+        /// keys apart. Not for a password, of which nothing shows.
+        let showsTail: Bool
 
-        init(_ pattern: String, maskable: Bool = true) {
+        init(_ pattern: String, maskable: Bool = true, showsTail: Bool = true) {
             regex = try! NSRegularExpression(pattern: pattern)
             self.maskable = maskable
+            self.showsTail = showsTail
         }
     }
 
@@ -46,9 +50,23 @@ public enum Secrets {
         // ('sk-loading-spinner'), so the key itself must be long and mix
         // capitals, small letters and digits, as generated keys do.
         Format(#"\b(sk-(?:proj-|svcacct-|admin-)?)(?=[A-Za-z0-9_-]*[A-Z])(?=[A-Za-z0-9_-]*[a-z])(?=[A-Za-z0-9_-]*[0-9])[A-Za-z0-9_-]{32,}"#),
+        Format(#"\b((?:sk|rk)_(?:live|test)_)[A-Za-z0-9]{24,}"#), // Stripe
+        Format(#"\b(glpat-)[A-Za-z0-9_-]{20,}"#), // GitLab
+        Format(#"\b(AIza)[0-9A-Za-z_-]{35}\b"#), // Google API key
+        Format(#"\b(npm_)[A-Za-z0-9]{36}\b"#),
+        Format(#"\b(hf_)[A-Za-z0-9]{34,}\b"#), // Hugging Face
+        Format(#"\b(SG\.)[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}\b"#), // SendGrid
+        Format(#"\b(AGE-SECRET-KEY-1)[0-9A-Z]{58}\b"#),
+        // An AWS access key ID is not secret by itself, but it is rarely
+        // copied without its secret key, which has no format of its own:
+        // that is only recognised where it is named.
         Format(#"\b(AKIA|ASIA)[0-9A-Z]{16}\b"#),
-        Format(#"\b(xox[abposr]-)[A-Za-z0-9-]{10,}"#),
+        Format(#"(?i)\b(aws_secret_access_key\s*[=:]\s*["']?)[A-Za-z0-9/+]{40}(?![A-Za-z0-9/+])"#),
+        Format(#"\b(xox[abposr]-|xapp-)[A-Za-z0-9-]{10,}"#), // Slack
         Format(#"\b(eyJ)[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"#),
+        Format(#"\b(Bearer\s+)[A-Za-z0-9._~+/-]{20,}=*"#),
+        // A password in a URL ('https://user:password@host').
+        Format(#"\b([a-z][a-z0-9+.-]*://[^\s/:@]+:)[^\s/@]{3,}(?=@)"#, showsTail: false),
     ]
 
     /// Stands in for the hidden part. Always the same length, so the mask
@@ -84,11 +102,11 @@ public enum Secrets {
     /// length.
     public static func mask(_ line: String) -> String {
         if isArmorLine(line) { return line }
-        guard let (range, prefix) = credentials(in: line).first else { return dots }
+        guard let (range, prefix, showsTail) = credentials(in: line).first else { return dots }
         let before = String(line[..<range.lowerBound])
         let after = line[range.upperBound...]
         var result = before.isEmpty || isAssignment(before) ? before : dots + " "
-        result += maskCredential(String(line[range]), prefix: prefix)
+        result += maskCredential(String(line[range]), prefix: prefix, showsTail: showsTail)
         if after.trimmingCharacters(in: closing).isEmpty {
             result += after
         } else {
@@ -122,24 +140,24 @@ public enum Secrets {
 
     /// Non-overlapping maskable credentials in `line`, in order, each with
     /// its visible prefix.
-    private static func credentials(in line: String) -> [(Range<String.Index>, String)] {
+    private static func credentials(in line: String) -> [(Range<String.Index>, String, Bool)] {
         let whole = NSRange(line.startIndex..., in: line)
-        var found: [(Range<String.Index>, String)] = []
+        var found: [(Range<String.Index>, String, Bool)] = []
         for format in formats where format.maskable {
             for match in format.regex.matches(in: line, range: whole) {
                 guard let range = Range(match.range, in: line),
                       let prefixRange = Range(match.range(at: 1), in: line),
                       !found.contains(where: { $0.0.overlaps(range) })
                 else { continue }
-                found.append((range, String(line[prefixRange])))
+                found.append((range, String(line[prefixRange]), format.showsTail))
             }
         }
         return found.sorted { $0.0.lowerBound < $1.0.lowerBound }
     }
 
-    private static func maskCredential(_ credential: String, prefix: String) -> String {
+    private static func maskCredential(_ credential: String, prefix: String, showsTail: Bool) -> String {
         let body = credential.count - prefix.count
-        let tail = body >= 16 ? 4 : body >= 8 ? 2 : 0
+        let tail = !showsTail ? 0 : body >= 16 ? 4 : body >= 8 ? 2 : 0
         return prefix + dots + String(credential.suffix(tail))
     }
 }

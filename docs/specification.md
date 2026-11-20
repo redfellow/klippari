@@ -56,9 +56,15 @@ without the mouse.
   Access, Passwords, Bitwarden, 1Password, KeePassXC, by bundle
   identifier), or when its text contains a credential in a well-known
   format: GitHub tokens (`ghp_` and the other `gh*_`, `github_pat_`),
-  OpenAI and Anthropic keys (`sk-`, `sk-ant-`), AWS access key IDs
-  (`AKIA`, `ASIA`), Slack tokens (`xox*-`), JWTs, and private keys
-  (`-----BEGIN … PRIVATE KEY-----`, PGP's `… PRIVATE KEY BLOCK-----`). There is no entropy guess. The
+  OpenAI and Anthropic keys (`sk-`, `sk-ant-`), Stripe keys
+  (`sk_live_`, `rk_test_` and the like), GitLab tokens (`glpat-`),
+  Google API keys (`AIza`), npm and Hugging Face tokens (`npm_`,
+  `hf_`), SendGrid keys (`SG.`), age secret keys, AWS access key IDs
+  (`AKIA`, `ASIA`) and a secret access key where it is named
+  (`aws_secret_access_key = …`), Slack tokens (`xox*-`, `xapp-`),
+  JWTs, `Bearer` tokens, a password in a URL (`https://user:…@host`),
+  and private keys (`-----BEGIN … PRIVATE KEY-----`, PGP's
+  `… PRIVATE KEY BLOCK-----`). There is no entropy guess. The
   source app is the copy's `org.nspasteboard.source` when it has one,
   otherwise the app that was frontmost when the copy was made: when
   another app is activated, the clipboard is checked once more before
@@ -89,7 +95,8 @@ without the mouse.
   instead.
 - Its row is masked. The first credential on the line keeps its prefix
   and, when long enough, its last four characters (`sk-ant-••••••Q4fZ`),
-  so two of the same kind can be told apart. Before it only a variable
+  so two of the same kind can be told apart; a password in a URL shows
+  none of its characters. Before it only a variable
   name stays (`export GH_TOKEN=`); any other text before or after it is
   replaced by dots, since a secret often sits beside another one. A line
   with no known credential, such as a password, shows only the dots:
