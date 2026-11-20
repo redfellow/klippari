@@ -94,7 +94,7 @@ public struct RestoreResult: Equatable, Sendable {
     /// timed; true when that took items out of the cleared history.
     public var onSecretAdded: ((_ clearedHistoryChanged: Bool) -> Void)?
     /// Texts the user said are not secrets (`keepAsOrdinary`), by
-    /// `secretKey`. For this run only.
+    /// `secretKey`: those of this run, and of the saved items marked so.
     private var notSecrets: Set<String> = []
 
     /// With `sealingPlainItems`, history written before encryption is
@@ -111,6 +111,30 @@ public struct RestoreResult: Equatable, Sendable {
         }
         self.items = storage.loadAll()
         trim()
+        notSecrets = Set(items.filter(\.notSecret).map(Self.secretKey))
+        takeOutTokens(now: Date())
+    }
+
+    /// Whether a saved item holds a credential in a known format and the
+    /// user has not said it is no secret.
+    private func isUnmarkedToken(_ item: ClipItem) -> Bool {
+        guard !item.isSecret, !item.notSecret, !notSecrets.contains(Self.secretKey(item)),
+              let string = item.content.plainString
+        else { return false }
+        return Secrets.containsCredential(string)
+    }
+
+    /// A token saved before secrets were detected, or in a format added
+    /// since, is a secret now: it is read in full, taken off the disk,
+    /// and leaves the history like any secret, `secretLifetime` from now.
+    /// Cmd+S keeps one for good.
+    private func takeOutTokens(now: Date) {
+        for index in items.indices where isUnmarkedToken(items[index]) {
+            guard let full = storage.loadContent(id: items[index].id), full.isComplete else { continue }
+            storage.delete(id: items[index].id)
+            items[index].content = full
+            items[index].expiresAt = now.addingTimeInterval(Self.secretLifetime)
+        }
     }
 
     /// Encrypts the history and the cleared history written before
@@ -202,7 +226,8 @@ public struct RestoreResult: Equatable, Sendable {
 
         var item = ClipItem(
             id: UUID(), capturedAt: now, lastUsedAt: now, sourceApp: sourceApp,
-            content: content, imageInfo: ImageInfo.inspect(content), contentHash: hash
+            content: content, imageInfo: ImageInfo.inspect(content), contentHash: hash,
+            notSecret: notSecrets.contains(key)
         )
         do {
             try storage.save(item)
@@ -266,6 +291,7 @@ public struct RestoreResult: Equatable, Sendable {
         guard let index = items.firstIndex(where: { $0.id == id && $0.isSecret }) else { return }
         var item = items[index]
         item.expiresAt = nil
+        item.notSecret = true
         notSecrets.insert(Self.secretKey(item))
         do {
             try storage.save(item)
@@ -463,15 +489,36 @@ public struct RestoreResult: Equatable, Sendable {
         // Secrets take no room: they are not counted toward the limit.
         let room = max(limit - items.lazy.filter { !$0.isSecret }.count, 0)
         var result = RestoreResult(restored: 0, noRoom: 0, failed: 0)
+        var saved = 0
+        var addedSecrets = false
+        let now = Date()
         for (item, clear) in waiting {
-            guard result.restored < room else {
+            if isUnmarkedToken(item) {
+                // A token cleared before it was taken for one comes back
+                // as what it is now: a secret, in memory only.
+                guard let full = clear.storage.loadContent(id: item.id), full.isComplete else {
+                    result.failed += 1
+                    continue
+                }
+                clear.storage.delete(id: item.id)
+                var secret = item
+                secret.content = full
+                secret.expiresAt = now.addingTimeInterval(Self.secretLifetime)
+                items.append(secret)
+                result.restored += 1
+                addedSecrets = true
+                continue
+            }
+            guard saved < room else {
                 result.noRoom += 1
                 continue
             }
             do {
                 try clear.storage.move(id: item.id, to: storage)
                 items.append(item)
+                if item.notSecret { notSecrets.insert(Self.secretKey(item)) }
                 result.restored += 1
+                saved += 1
             } catch {
                 Self.logger.error("Could not restore item: \(error.localizedDescription, privacy: .public)")
                 result.failed += 1
@@ -482,6 +529,7 @@ public struct RestoreResult: Equatable, Sendable {
             items.sort { $0.lastUsedAt > $1.lastUsedAt }
             onChange?()
         }
+        if addedSecrets { onSecretAdded?(true) }
         return result
     }
 

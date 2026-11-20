@@ -99,8 +99,14 @@ without the mouse.
 - The filter matches only what a secret's row shows, and the word
   'secret'. The image preview never shows a secret.
 - Cmd+S on a selected secret keeps it as an ordinary item: it is saved
-  and shown in full, and copies of the same text are not taken for
-  secrets again until the app quits. While a secret is selected, the
+  and shown in full, marked as no secret, and copies of the same text
+  are never taken for secrets again, after a restart too.
+- A saved item whose text holds a credential in a known format and is
+  not marked as no secret, saved by an earlier build or before its
+  format was known, becomes a secret at launch: it is taken off the
+  disk and leaves the history 10 minutes later. Restore brings back
+  such an item from the cleared history the same way, as a secret
+  that takes no room. While a secret is selected, the
   footer's 'Quick paste' hint gives way to 'Not a secret'.
 - An OpenAI-style `sk-` key must be at least 32 characters after its
   prefix and mix capitals, small letters and digits, so that URL slugs

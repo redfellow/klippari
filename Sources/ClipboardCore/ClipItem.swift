@@ -183,6 +183,9 @@ public struct ClipItem: Identifiable, Equatable, Sendable {
     /// Set for a secret: it is kept in memory only, with its full content,
     /// and leaves the history at this time. Nil for ordinary items.
     public var expiresAt: Date?
+    /// Set when the user said this is not a secret (Cmd+S on a masked
+    /// row), so it is never taken for one again, across restarts too.
+    public var notSecret: Bool
 
     public var isSecret: Bool { expiresAt != nil }
 
@@ -190,7 +193,8 @@ public struct ClipItem: Identifiable, Equatable, Sendable {
     /// is computed from `content`.
     public init(
         id: UUID, capturedAt: Date, lastUsedAt: Date, sourceApp: String?,
-        content: ClipContent, imageInfo: ImageInfo?, contentHash: String? = nil, expiresAt: Date? = nil
+        content: ClipContent, imageInfo: ImageInfo?, contentHash: String? = nil, expiresAt: Date? = nil,
+        notSecret: Bool = false
     ) {
         self.id = id
         self.capturedAt = capturedAt
@@ -200,5 +204,6 @@ public struct ClipItem: Identifiable, Equatable, Sendable {
         self.imageInfo = imageInfo
         self.contentHash = contentHash ?? content.contentHash
         self.expiresAt = expiresAt
+        self.notSecret = notSecret
     }
 }

@@ -145,6 +145,8 @@ import os
         }
         panel.onClearAll = { [weak self] in self?.clearFromPanel() }
         showArchive()
+        // Tokens saved by an earlier build are secrets now, timed too.
+        scheduleSecretCheck()
         monitor.start()
     }
 

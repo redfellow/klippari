@@ -36,6 +36,9 @@ public struct ItemStorage: Sendable {
         /// Absent in manifests written before hashes were stored.
         var contentHash: String?
         var entries: [[TypeRecord]]
+        /// True when the user said the item is not a secret; absent
+        /// otherwise, and in manifests written before secrets.
+        var notSecret: Bool?
     }
 
     private static let manifestName = "manifest.json"
@@ -116,7 +119,7 @@ public struct ItemStorage: Sendable {
             let manifest = Manifest(
                 id: item.id, capturedAt: item.capturedAt, lastUsedAt: item.lastUsedAt,
                 sourceApp: item.sourceApp, imageInfo: item.imageInfo,
-                contentHash: item.contentHash, entries: records
+                contentHash: item.contentHash, entries: records, notSecret: item.notSecret ? true : nil
             )
             try writeSealed(
                 JSONEncoder().encode(manifest), to: temporary.appendingPathComponent(Self.manifestName), id: item.id
@@ -167,6 +170,7 @@ public struct ItemStorage: Sendable {
         manifest.lastUsedAt = item.lastUsedAt
         manifest.sourceApp = item.sourceApp
         manifest.contentHash = item.contentHash
+        manifest.notSecret = item.notSecret ? true : nil
 
         // Write beside it and rename over it, so the manifest is never
         // half written.
@@ -505,7 +509,7 @@ public struct ItemStorage: Sendable {
         return ClipItem(
             id: manifest.id, capturedAt: manifest.capturedAt, lastUsedAt: manifest.lastUsedAt,
             sourceApp: manifest.sourceApp, content: light, imageInfo: manifest.imageInfo,
-            contentHash: hash
+            contentHash: hash, notSecret: manifest.notSecret ?? false
         )
     }
 

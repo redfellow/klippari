@@ -149,6 +149,44 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         #expect(calls == [false, false, true])
     }
 
+    @Test func aTokenSavedByAnEarlierBuildIsASecretAtLaunch() {
+        let store = makeStore()
+        // An earlier build saved this as an ordinary item.
+        store.add(text("export GH_TOKEN=\(fakeGitHubToken)"), sourceApp: "Terminal", now: at(0))
+        store.add(text("plain"), sourceApp: nil, now: at(1))
+        #expect(itemsOnDisk() == 2)
+        let reopened = makeStore()
+        #expect(reopened.items.map(\.isSecret) == [false, true])
+        #expect(itemsOnDisk() == 1)
+        #expect(reopened.fullContent(for: reopened.items[1].id) == text("export GH_TOKEN=\(fakeGitHubToken)"))
+        #expect(reopened.nextSecretExpiry != nil)
+    }
+
+    @Test func notASecretHoldsAcrossRestarts() {
+        let store = makeStore()
+        let item = store.add(text(fakeAnthropicKey), sourceApp: "Ghostty", secret: true, now: at(0))
+        store.keepAsOrdinary(item.id)
+        let reopened = makeStore()
+        #expect(reopened.items.map(\.isSecret) == [false])
+        #expect(reopened.items[0].notSecret)
+        // Copied again, as plain text or with other types: still not a secret.
+        reopened.add(text(fakeAnthropicKey), sourceApp: "Ghostty", secret: true, now: at(1))
+        reopened.add(richCopy(fakeAnthropicKey), sourceApp: "Notes", secret: true, now: at(2))
+        #expect(reopened.items.map(\.isSecret) == [false, false])
+        #expect(makeStore().items.map(\.isSecret) == [false, false])
+    }
+
+    @Test func aClearedTokenIsRestoredAsASecret() {
+        let store = makeStore()
+        store.add(text(fakeGitHubToken), sourceApp: "Terminal", now: at(0))
+        store.add(text("plain"), sourceApp: nil, now: at(1))
+        store.archiveAll(now: at(2))
+        #expect(store.restoreArchive() == RestoreResult(restored: 2, noRoom: 0))
+        #expect(store.items.map(\.isSecret) == [false, true])
+        #expect(itemsOnDisk() == 1)
+        #expect(store.archiveSummary == nil)
+    }
+
     @Test func clearingDropsSecretsAndArchivesTheRest() {
         let store = makeStore()
         store.add(text("plain"), sourceApp: nil, now: at(0))
