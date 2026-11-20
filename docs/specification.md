@@ -72,7 +72,12 @@ without the mouse.
   when the app quits. Pasting it does not extend that; copying it again
   does. Content already in the history that is copied again as a secret
   is taken off the disk.
-- Clearing the history drops secrets; they are never archived.
+- Clearing the history drops secrets; they are never archived. A copy
+  of a secret already in the cleared history, from when the same
+  content was copied as an ordinary item, is deleted when the secret
+  is added, and each clear keeps its date. Restoring never brings
+  back an item whose content is a secret in the history: its archived
+  copy is deleted instead.
 - Its row is masked. The first credential on the line keeps its prefix
   and, when long enough, its last four characters (`sk-ant-••••••Q4fZ`),
   so two of the same kind can be told apart. Before it only a variable

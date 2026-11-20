@@ -161,10 +161,12 @@ public struct RestoreResult: Equatable, Sendable {
 
     /// Records a copy. Content identical to an existing item moves that
     /// item to the top instead of adding a duplicate. A `secret` copy is
-    /// kept in memory only, until `secretLifetime` from now.
+    /// kept in memory only, until `secretLifetime` from now, and any copy
+    /// of it in the cleared history is deleted.
     @discardableResult
     public func add(_ content: ClipContent, sourceApp: String?, secret: Bool = false, now: Date) -> ClipItem {
         let hash = content.contentHash
+        if secret { deleteArchivedCopies(of: hash) }
         if let index = items.firstIndex(where: { $0.contentHash == hash }) {
             guard secret else { return touch(index, now: now) }
             // Copied again as a secret: off the disk if it was on it, and
@@ -205,17 +207,19 @@ public struct RestoreResult: Equatable, Sendable {
     /// Takes over another store's items, as when the history moves from
     /// a folder kept for one run to the saved one. Each item is saved
     /// here with its full content, read from the other store; secrets
-    /// stay in memory, with the time they have left. Content already
-    /// here is not added twice, and the history size applies. An item
-    /// whose content can no longer be read whole is left out: it could
-    /// not be pasted either.
+    /// stay in memory, with the time they have left, and leave this
+    /// store's cleared history. Content already here is not added twice,
+    /// and the history size applies. An item whose content can no longer
+    /// be read whole is left out: it could not be pasted either.
     public func adopt(_ other: HistoryStore) {
         let present = Set(items.map(\.contentHash))
         for var item in other.items where !present.contains(item.contentHash) {
             let full = other.fullContent(for: item.id) ?? item.content
             guard full.isComplete else { continue }
             item.content = full
-            if !item.isSecret {
+            if item.isSecret {
+                deleteArchivedCopies(of: item.contentHash)
+            } else {
                 do {
                     try storage.save(item)
                     item.content = full.lightened
@@ -312,6 +316,17 @@ public struct RestoreResult: Equatable, Sendable {
         return archived
     }
 
+    /// Deletes every item in the cleared history whose content is `hash`,
+    /// so that a secret cannot be restored from there as a saved item. A
+    /// clear's date is in its folder's name, so its time left is kept.
+    private func deleteArchivedCopies(of hash: String) {
+        let archive = archive
+        for old in archive.items() where old.item.contentHash == hash {
+            old.clear.storage.delete(id: old.item.id)
+        }
+        archive.removeEmpty()
+    }
+
     /// The archived history, if there is one.
     public var archiveSummary: ArchiveSummary? {
         archive.summary
@@ -353,10 +368,14 @@ public struct RestoreResult: Equatable, Sendable {
     /// deletes an item or pushes one out of the history. The only thing
     /// it removes from the archive besides what came back is a copy of
     /// something already in the history. An item that could not be
-    /// moved stays there too, in its clear, to be restored later.
+    /// moved stays there too, in its clear, to be restored later. A
+    /// secret in the history never comes back as a saved item: its
+    /// archived copy is deleted instead, even if adding the secret could
+    /// not delete it.
     @discardableResult
     public func restoreArchive() -> RestoreResult {
         let archive = archive
+        // Secrets included: an archived copy of one is deleted, not restored.
         var seen = Set(items.map(\.contentHash))
         var waiting: [(item: ClipItem, clear: ClearedHistory.Clear)] = []
         // Newest first, so a second copy of the same content is the older.

@@ -119,7 +119,11 @@ import os
         monitor?.stop()
         panel?.hide()
         store = HistoryStore(storage: storage, limit: settings.historyLimit, sealingPlainItems: false)
-        store.onSecretAdded = { [weak self] in self?.startSecretTimer() }
+        store.onSecretAdded = { [weak self] in
+            self?.startSecretTimer()
+            // A secret also takes its copies out of the cleared history.
+            self?.showArchive()
+        }
         if let previous { store.adopt(previous) }
         store.expireArchive(now: Date())
         monitor = ClipboardMonitor(

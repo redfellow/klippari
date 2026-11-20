@@ -60,6 +60,10 @@ Expected behaviour is defined in `specification.md`.
 - [ ] Starting a build of this version over a cleared history left by
       an earlier build keeps it: Settings shows it with the date it
       had, and Restore brings it back.
+- [ ] Copying a password as ordinary text, clearing, then copying it in
+      Passwords takes it out of Cleared history (the count
+      drops at once); once the secret has gone after 10 minutes, Restore
+      does not bring the password back.
 - [ ] The panel looks right in light and dark mode, over light and
       dark windows, including its corners and blur.
 - [ ] An image row shows a thumbnail.

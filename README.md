@@ -202,7 +202,8 @@ it was made, and the oldest go sooner if the cleared history passes
 Secrets are never written to disk. A copy counts as one when it comes
 from a password app, even if you switch apps straight after copying,
 or contains an API key or token in a well-known format; it is shown
-masked and leaves the history after 10 minutes.
+masked and leaves the history after 10 minutes. A copy of it in the
+cleared history is deleted, so Restore cannot bring it back.
 
 ## Icon and screenshots
 

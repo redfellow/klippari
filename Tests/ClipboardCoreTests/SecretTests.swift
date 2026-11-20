@@ -85,6 +85,65 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         #expect(store.archiveSummary == ArchiveSummary(count: 1, archivedAt: at(1)))
     }
 
+    /// Ari's reproduction: the cleared copy of a password must not come
+    /// back once the secret it became has expired.
+    @Test func aClearedCopyOfASecretCannotBeRestored() {
+        let store = makeStore()
+        let password = "correct horse battery staple"
+        store.add(text(password), sourceApp: "Notes", now: at(0))
+        store.archiveAll(now: at(1))
+        store.add(text(password), sourceApp: "Passwords", secret: true, now: at(2))
+        #expect(store.archiveSummary == nil)
+        store.expireSecrets(now: at(2 + HistoryStore.secretLifetime))
+        #expect(store.items.isEmpty)
+        #expect(store.restoreArchive().restored == 0)
+        #expect(store.items.isEmpty)
+        #expect(itemsOnDisk() == 0)
+    }
+
+    @Test func aSecretLeavesTheClearedHistoryAndTheRestStays() {
+        let store = makeStore()
+        store.add(text("plain"), sourceApp: nil, now: at(0))
+        store.add(text(fakeAnthropicKey), sourceApp: nil, now: at(0))
+        store.archiveAll(now: at(1))
+        store.add(text(fakeAnthropicKey), sourceApp: nil, secret: true, now: at(2))
+        // The clear keeps its date, and so its time left.
+        #expect(store.archiveSummary == ArchiveSummary(count: 1, archivedAt: at(1)))
+        store.expireSecrets(now: at(2 + HistoryStore.secretLifetime))
+        #expect(store.restoreArchive().restored == 1)
+        #expect(store.items.map(\.content) == [text("plain")])
+    }
+
+    @Test func restoreDeletesTheArchivedCopyOfASecretInMemory() {
+        let password = "correct horse battery staple"
+        let store = makeStore()
+        store.add(text(password), sourceApp: "Passwords", secret: true, now: at(0))
+        // A copy reaches the cleared history after the secret was added,
+        // here through another store on the same folder.
+        let other = makeStore()
+        other.add(text(password), sourceApp: "Notes", now: at(1))
+        other.archiveAll(now: at(2))
+        #expect(store.archiveSummary?.count == 1)
+
+        #expect(store.restoreArchive().restored == 0)
+        #expect(store.items.count == 1)
+        #expect(store.items[0].isSecret)
+        #expect(store.archiveSummary == nil)
+        #expect(itemsOnDisk() == 0)
+    }
+
+    @Test func takingOverASecretDeletesItsClearedCopy() {
+        let password = "correct horse battery staple"
+        let store = makeStore()
+        store.add(text(password), sourceApp: "Notes", now: at(0))
+        store.archiveAll(now: at(1))
+        let unsaved = HistoryStore(storage: ItemStorage(root: temporaryRoot(), cipher: testCipher))
+        unsaved.add(text(password), sourceApp: "Passwords", secret: true, now: at(2))
+        store.adopt(unsaved)
+        #expect(store.items.map(\.isSecret) == [true])
+        #expect(store.archiveSummary == nil)
+    }
+
     @Test func secretsHaveNoThumbnail() {
         let store = makeStore()
         let png = content(TypedData(type: TypeName.png, data: makePNG(width: 20, height: 20)))
