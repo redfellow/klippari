@@ -388,7 +388,8 @@ public struct RestoreResult: Equatable, Sendable {
         }
 
         // An item that cannot be moved leaves its room to the next one.
-        let room = max(limit - items.count, 0)
+        // Secrets take no room: they are not counted toward the limit.
+        let room = max(limit - items.lazy.filter { !$0.isSecret }.count, 0)
         var result = RestoreResult(restored: 0, noRoom: 0, failed: 0)
         for (item, clear) in waiting {
             guard result.restored < room else {
@@ -431,10 +432,18 @@ public struct RestoreResult: Equatable, Sendable {
         return item
     }
 
+    /// Drops the oldest saved items past `limit`. Secrets do not count
+    /// toward it: they leave by themselves within minutes, and must not
+    /// push a saved item out of the history for good.
     private func trim() {
-        let keep = max(limit, 0)
-        while items.count > keep {
-            storage.delete(id: items.removeLast().id)
+        var excess = items.lazy.filter { !$0.isSecret }.count - max(limit, 0)
+        var index = items.count - 1
+        while excess > 0, index >= 0 {
+            if !items[index].isSecret {
+                storage.delete(id: items.remove(at: index).id)
+                excess -= 1
+            }
+            index -= 1
         }
     }
 }

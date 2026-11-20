@@ -71,7 +71,9 @@ without the mouse.
   content and leaves the history 10 minutes after it was copied, or
   when the app quits. Pasting it does not extend that; copying it again
   does. Content already in the history that is copied again as a secret
-  is taken off the disk.
+  is taken off the disk. Secrets do not count toward the history size,
+  so copying one never pushes a saved item out, and Restore's room
+  leaves them out too.
 - Clearing the history drops secrets; they are never archived. A copy
   of a secret already in the cleared history, from when the same
   content was copied as an ordinary item, is deleted when the secret

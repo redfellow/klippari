@@ -75,6 +75,32 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         #expect(store.items.map(\.content) == [text("plain")])
     }
 
+    @Test func secretsDoNotPushSavedItemsOut() {
+        let store = makeStore(limit: 2)
+        store.add(text("oldest"), sourceApp: nil, now: at(0))
+        store.add(text("newer"), sourceApp: nil, now: at(1))
+        store.add(text(fakeAnthropicKey), sourceApp: nil, secret: true, now: at(2))
+        store.add(text(otherAnthropicKey), sourceApp: nil, secret: true, now: at(3))
+        #expect(store.items.count == 4)
+        #expect(itemsOnDisk() == 2)
+        store.expireSecrets(now: at(1000))
+        #expect(store.items.map(\.content) == [text("newer"), text("oldest")])
+        // A saved copy past the limit still drops the oldest saved item.
+        store.add(text(fakeGitHubToken), sourceApp: nil, secret: true, now: at(1001))
+        store.add(text("newest"), sourceApp: nil, now: at(1002))
+        #expect(store.items.map(\.content) == [text("newest"), text(fakeGitHubToken), text("newer")])
+    }
+
+    @Test func restoreLeavesSecretsOutOfItsRoom() {
+        let store = makeStore(limit: 2)
+        store.add(text("a"), sourceApp: nil, now: at(0))
+        store.add(text("b"), sourceApp: nil, now: at(1))
+        store.archiveAll(now: at(2))
+        store.add(text(fakeAnthropicKey), sourceApp: nil, secret: true, now: at(3))
+        #expect(store.restoreArchive() == RestoreResult(restored: 2, noRoom: 0))
+        #expect(store.items.count == 3)
+    }
+
     @Test func clearingOnlySecretsKeepsThePreviousArchive() {
         let store = makeStore()
         store.add(text("plain"), sourceApp: nil, now: at(0))
