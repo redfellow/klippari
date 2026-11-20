@@ -334,7 +334,9 @@ matches 'image' and its format, such as 'png'. The first match becomes
 selected and rows are renumbered.
 
 If something is copied while the panel is open, the list updates and
-the selection stays on the same item.
+the selection stays on the same item. If the selected item leaves the
+list by itself, as a secret does when its time is up, the row that
+takes its place is selected, or the one before it at the end.
 
 With the **Mouse** setting on, moving the pointer over a row selects it,
 and a click pastes it as copied; Shift+click pastes it as plain text.

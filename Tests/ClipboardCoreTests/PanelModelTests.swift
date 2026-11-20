@@ -19,6 +19,19 @@ import ClipboardCore
         model.rows.map(\.presentation.title)
     }
 
+    @Test func anExpiredSecretLeavesTheSelectionInItsPlace() {
+        let model = makeModel("a", "b")
+        store.add(text("hunter2-but-longer"), sourceApp: "Passwords", secret: true, now: at(1))
+        store.add(text("c"), sourceApp: "Notes", now: at(500))
+        model.open()
+        // c, secret, b, a
+        model.moveSelection(by: 1)
+        #expect(model.selectionIsSecret)
+        store.expireSecrets(now: at(1000))
+        #expect(titles(model) == ["c", "b", "a"])
+        #expect(model.selectedItem?.content == text("b"))
+    }
+
     @Test func notASecretShowsTheSelectedSecretInFull() {
         let model = makeModel("a")
         store.add(text("hunter2-but-longer"), sourceApp: "Passwords", secret: true, now: at(500))
@@ -195,11 +208,14 @@ import ClipboardCore
         #expect(model.selectedItem?.content == text("b"))
     }
 
-    @Test func storeChangeThatRemovesSelectionSelectsFirst() {
+    @Test func storeChangeThatRemovesSelectionSelectsTheRowInItsPlace() {
         let model = makeModel("a", "b", "c")
-        model.moveSelection(by: 2)
+        model.moveSelection(by: 1)
         store.remove(model.selectedID!)
-        #expect(model.selectedID == model.rows[0].id)
+        #expect(model.selectedItem?.content == text("a"))
+        // The last row gone: the one before it.
+        store.remove(model.selectedID!)
+        #expect(model.selectedItem?.content == text("c"))
     }
 
     @Test func unknownSourceAppIsEmpty() {

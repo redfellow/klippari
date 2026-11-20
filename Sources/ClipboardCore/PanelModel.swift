@@ -166,9 +166,17 @@ import Observation
                 expiresIn: item.expiresAt.map { remainingString(until: $0, now: date) }
             ))
         }
+        let oldIndex = rows.firstIndex { $0.id == selectedID }
         rows = built
 
         if keepingSelection, let selectedID, built.contains(where: { $0.id == selectedID }) {
+            return
+        }
+        // The selected row went away by itself (a secret whose time ran
+        // out): the row now in its place is selected, as after a delete,
+        // so that Return does not paste the newest item instead.
+        if keepingSelection, let oldIndex, !built.isEmpty {
+            selectedID = built[min(oldIndex, built.count - 1)].id
             return
         }
         selectedID = built.first?.id
