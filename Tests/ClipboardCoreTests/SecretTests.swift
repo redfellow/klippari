@@ -63,6 +63,51 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         #expect(store.items.count == 1)
     }
 
+    /// The same password as Notes copies it: plain text beside rich text.
+    func richCopy(_ string: String) -> ClipContent {
+        content(typed(TypeName.plainText, string), typed(TypeName.rtf, "{\\rtf1 \(string)}"))
+    }
+
+    @Test func aSecretTakesARichCopyOfItsTextOffTheDisk() {
+        let store = makeStore()
+        store.add(richCopy("hunter2-but-longer"), sourceApp: "Notes", now: at(0))
+        store.add(text("other"), sourceApp: "Notes", now: at(1))
+        #expect(itemsOnDisk() == 2)
+        let item = store.add(text("hunter2-but-longer"), sourceApp: "Passwords", secret: true, now: at(2))
+        #expect(itemsOnDisk() == 1)
+        #expect(store.items.map(\.id) == [item.id, store.items[1].id])
+        #expect(store.items.map(\.isSecret) == [true, false])
+        #expect(store.items[0].sourceApp == "Passwords")
+    }
+
+    @Test func aSecretTakesARichCopyOfItsTextOutOfTheClearedHistory() {
+        let store = makeStore()
+        store.add(richCopy("hunter2-but-longer"), sourceApp: "Notes", now: at(0))
+        store.add(text("other"), sourceApp: "Notes", now: at(1))
+        store.archiveAll(now: at(2))
+        store.add(text("hunter2-but-longer"), sourceApp: "Passwords", secret: true, now: at(3))
+        #expect(store.archiveSummary?.count == 1)
+        store.expireSecrets(now: at(1000))
+        store.restoreArchive()
+        #expect(store.items.map(\.content) == [text("other")])
+    }
+
+    @Test func theSameTextFromAnyAppIsTheSecretAgain() {
+        let store = makeStore()
+        store.add(text("hunter2-but-longer"), sourceApp: "Passwords", secret: true, now: at(0))
+        let rich = store.add(richCopy("hunter2-but-longer"), sourceApp: "Notes", now: at(300))
+        #expect(itemsOnDisk() == 0)
+        #expect(store.items.count == 1)
+        #expect(store.items[0].isSecret)
+        #expect(store.items[0].expiresAt == at(900))
+        // Copied again exactly, from an ordinary app: the same row, with a
+        // fresh lifetime.
+        store.add(richCopy("hunter2-but-longer"), sourceApp: "Notes", now: at(400))
+        #expect(store.items.count == 1)
+        #expect(store.items[0].expiresAt == at(1000))
+        #expect(store.items[0].id == rich.id)
+    }
+
     @Test func clearingDropsSecretsAndArchivesTheRest() {
         let store = makeStore()
         store.add(text("plain"), sourceApp: nil, now: at(0))

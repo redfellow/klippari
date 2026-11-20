@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import os
 
@@ -161,46 +162,55 @@ public struct RestoreResult: Equatable, Sendable {
 
     /// Records a copy. Content identical to an existing item moves that
     /// item to the top instead of adding a duplicate. A `secret` copy is
-    /// kept in memory only, until `secretLifetime` from now, and any copy
-    /// of it in the cleared history is deleted.
+    /// kept in memory only, until `secretLifetime` from now. A copy with
+    /// the same text as a secret in the history is that secret again,
+    /// whatever app it came from. Adding a secret takes every copy with
+    /// its text out of the history, off the disk and out of the cleared
+    /// history: the same password copied from two apps usually comes
+    /// with different other types, so the exact content rarely matches.
     @discardableResult
     public func add(_ content: ClipContent, sourceApp: String?, secret: Bool = false, now: Date) -> ClipItem {
         let hash = content.contentHash
-        if secret { deleteArchivedCopies(of: hash) }
-        if let index = items.firstIndex(where: { $0.contentHash == hash }) {
-            guard secret else { return touch(index, now: now) }
-            // Copied again as a secret: off the disk if it was on it, and
-            // a fresh lifetime.
-            var item = items.remove(at: index)
-            if !item.isSecret { storage.delete(id: item.id) }
-            item.content = content
-            item.lastUsedAt = now
-            item.expiresAt = now.addingTimeInterval(Self.secretLifetime)
+        let key = Self.secretKey(content, hash: hash)
+        let secret = secret || items.contains { $0.isSecret && Self.secretKey($0) == key }
+        if secret {
+            deleteArchivedCopies(matching: key)
+            let earlier = items.filter { Self.secretKey($0) == key }
+            for old in earlier where !old.isSecret {
+                storage.delete(id: old.id)
+            }
+            items.removeAll { Self.secretKey($0) == key }
+            // The same content keeps its row; a fresh lifetime either way.
+            let item = ClipItem(
+                id: earlier.first(where: { $0.contentHash == hash })?.id ?? UUID(),
+                capturedAt: now, lastUsedAt: now, sourceApp: sourceApp,
+                content: content, imageInfo: ImageInfo.inspect(content), contentHash: hash,
+                expiresAt: now.addingTimeInterval(Self.secretLifetime)
+            )
             items.insert(item, at: 0)
             onChange?()
             onSecretAdded?()
             return item
         }
+        if let index = items.firstIndex(where: { $0.contentHash == hash }) {
+            return touch(index, now: now)
+        }
 
         var item = ClipItem(
             id: UUID(), capturedAt: now, lastUsedAt: now, sourceApp: sourceApp,
-            content: content, imageInfo: ImageInfo.inspect(content), contentHash: hash,
-            expiresAt: secret ? now.addingTimeInterval(Self.secretLifetime) : nil
+            content: content, imageInfo: ImageInfo.inspect(content), contentHash: hash
         )
-        if !secret {
-            do {
-                try storage.save(item)
-                item.content = content.lightened
-            } catch {
-                // Keep the full content in memory, so the item can still be
-                // pasted; it just will not survive a restart.
-                Self.logger.error("Could not save item: \(error.localizedDescription, privacy: .public)")
-            }
+        do {
+            try storage.save(item)
+            item.content = content.lightened
+        } catch {
+            // Keep the full content in memory, so the item can still be
+            // pasted; it just will not survive a restart.
+            Self.logger.error("Could not save item: \(error.localizedDescription, privacy: .public)")
         }
         items.insert(item, at: 0)
         trim()
         onChange?()
-        if secret { onSecretAdded?() }
         return item
     }
 
@@ -218,7 +228,7 @@ public struct RestoreResult: Equatable, Sendable {
             guard full.isComplete else { continue }
             item.content = full
             if item.isSecret {
-                deleteArchivedCopies(of: item.contentHash)
+                deleteArchivedCopies(matching: Self.secretKey(item))
             } else {
                 do {
                     try storage.save(item)
@@ -316,15 +326,30 @@ public struct RestoreResult: Equatable, Sendable {
         return archived
     }
 
-    /// Deletes every item in the cleared history whose content is `hash`,
-    /// so that a secret cannot be restored from there as a saved item. A
-    /// clear's date is in its folder's name, so its time left is kept.
-    private func deleteArchivedCopies(of hash: String) {
+    /// Deletes every item in the cleared history that is the secret with
+    /// this key, so that it cannot be restored from there as a saved
+    /// item. A clear's date is in its folder's name, so its time left is
+    /// kept.
+    private func deleteArchivedCopies(matching key: String) {
         let archive = archive
-        for old in archive.items() where old.item.contentHash == hash {
+        for old in archive.items() where Self.secretKey(old.item) == key {
             old.clear.storage.delete(id: old.item.id)
         }
         archive.removeEmpty()
+    }
+
+    /// What makes two copies the same secret: a hash of their text when
+    /// they have any, else their exact content. The history keeps every
+    /// item's text in memory, so this works for saved and archived items
+    /// alike.
+    static func secretKey(_ content: ClipContent, hash: String) -> String {
+        guard let string = content.plainString, !string.isEmpty else { return "content:" + hash }
+        let digest = SHA256.hash(data: Data(string.utf8))
+        return "text:" + digest.map { String(format: "%02x", $0) }.joined()
+    }
+
+    static func secretKey(_ item: ClipItem) -> String {
+        secretKey(item.content, hash: item.contentHash)
     }
 
     /// The archived history, if there is one.
@@ -375,12 +400,14 @@ public struct RestoreResult: Equatable, Sendable {
     @discardableResult
     public func restoreArchive() -> RestoreResult {
         let archive = archive
-        // Secrets included: an archived copy of one is deleted, not restored.
         var seen = Set(items.map(\.contentHash))
+        // An archived copy of a secret is deleted, not restored, even
+        // when it came with other types than the secret did.
+        let secrets = Set(items.filter(\.isSecret).map(Self.secretKey))
         var waiting: [(item: ClipItem, clear: ClearedHistory.Clear)] = []
         // Newest first, so a second copy of the same content is the older.
         for old in archive.items() {
-            if seen.insert(old.item.contentHash).inserted {
+            if !secrets.contains(Self.secretKey(old.item)), seen.insert(old.item.contentHash).inserted {
                 waiting.append(old)
             } else {
                 old.clear.storage.delete(id: old.item.id)

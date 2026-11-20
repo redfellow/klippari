@@ -70,16 +70,19 @@ without the mouse.
 - A secret is never written to disk. It is kept in memory with its full
   content and leaves the history 10 minutes after it was copied, or
   when the app quits. Pasting it does not extend that; copying it again
-  does. Content already in the history that is copied again as a secret
-  is taken off the disk. Secrets do not count toward the history size,
-  so copying one never pushes a saved item out, and Restore's room
-  leaves them out too.
+  does. A copy with the same text as a secret in the history is that
+  secret again, from whatever app. Adding a secret takes every item
+  with its text out of the history and off the disk, even one copied
+  with other types beside the text (rich text from Notes, say), since
+  the same password from two apps rarely comes as the same bytes.
+  Secrets do not count toward the history size, so copying one never
+  pushes a saved item out, and Restore's room leaves them out too.
 - Clearing the history drops secrets; they are never archived. A copy
-  of a secret already in the cleared history, from when the same
-  content was copied as an ordinary item, is deleted when the secret
-  is added, and each clear keeps its date. Restoring never brings
-  back an item whose content is a secret in the history: its archived
-  copy is deleted instead.
+  of a secret's text already in the cleared history, from when it was
+  copied as an ordinary item, is deleted when the secret is added, and
+  each clear keeps its date. Restoring never brings back an item whose
+  text is a secret in the history: its archived copy is deleted
+  instead.
 - Its row is masked. The first credential on the line keeps its prefix
   and, when long enough, its last four characters (`sk-ant-••••••Q4fZ`),
   so two of the same kind can be told apart. Before it only a variable
