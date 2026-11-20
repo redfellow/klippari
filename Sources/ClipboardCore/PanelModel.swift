@@ -62,6 +62,19 @@ import Observation
         return total == 1 ? "1 item" : "\(total) items"
     }
 
+    /// Whether the selected row is a secret, which Cmd+S can keep as an
+    /// ordinary item.
+    public var selectionIsSecret: Bool {
+        rows.first { $0.id == selectedID }?.expiresIn != nil
+    }
+
+    /// Keeps the selected secret as an ordinary item: it is saved, shown
+    /// in full and stays selected.
+    public func keepSelectedAsOrdinary() {
+        guard let selectedID else { return }
+        store.keepAsOrdinary(selectedID)
+    }
+
     public var selectedItem: ClipItem? {
         guard let selectedID, rows.contains(where: { $0.id == selectedID }) else { return nil }
         return store.items.first { $0.id == selectedID }

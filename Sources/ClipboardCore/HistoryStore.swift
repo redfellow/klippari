@@ -93,6 +93,9 @@ public struct RestoreResult: Equatable, Sendable {
     /// Called when a secret joins the history, so its expiry can be
     /// timed.
     public var onSecretAdded: (() -> Void)?
+    /// Texts the user said are not secrets (`keepAsOrdinary`), by
+    /// `secretKey`. For this run only.
+    private var notSecrets: Set<String> = []
 
     /// With `sealingPlainItems`, history written before encryption is
     /// encrypted first (see `sealPlainHistory`). The app does that on
@@ -172,7 +175,8 @@ public struct RestoreResult: Equatable, Sendable {
     public func add(_ content: ClipContent, sourceApp: String?, secret: Bool = false, now: Date) -> ClipItem {
         let hash = content.contentHash
         let key = Self.secretKey(content, hash: hash)
-        let secret = secret || items.contains { $0.isSecret && Self.secretKey($0) == key }
+        let secret = !notSecrets.contains(key)
+            && (secret || items.contains { $0.isSecret && Self.secretKey($0) == key })
         if secret {
             deleteArchivedCopies(matching: key)
             let earlier = items.filter { Self.secretKey($0) == key }
@@ -243,6 +247,25 @@ public struct RestoreResult: Equatable, Sendable {
         trim()
         onChange?()
         if items.contains(where: \.isSecret) { onSecretAdded?() }
+    }
+
+    /// Turns a secret into an ordinary item, saved like any other, for
+    /// when the user says it is not a secret. Copies of the same text are
+    /// not taken for secrets again until the app quits.
+    public func keepAsOrdinary(_ id: UUID) {
+        guard let index = items.firstIndex(where: { $0.id == id && $0.isSecret }) else { return }
+        var item = items[index]
+        item.expiresAt = nil
+        notSecrets.insert(Self.secretKey(item))
+        do {
+            try storage.save(item)
+            item.content = item.content.lightened
+        } catch {
+            Self.logger.error("Could not save item: \(error.localizedDescription, privacy: .public)")
+        }
+        items[index] = item
+        trim()
+        onChange?()
     }
 
     public func markUsed(_ id: UUID, now: Date) {

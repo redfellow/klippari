@@ -53,6 +53,7 @@ Requires macOS 15 or later, on Apple silicon or Intel.
 | Typing                     | Filter by text, file name or source app; `image` or `png` lists images |
 | Cmd+Backspace              | Remove the selected item from the history |
 | Shift+Cmd+Backspace        | Clear the history (restorable in Settings) |
+| Cmd+S                      | Keep a secret as an ordinary item, saved  |
 | Esc                        | Clear the filter, then close              |
 
 The panel shows up to nine rows and scrolls beyond that. Drag it by
@@ -199,11 +200,17 @@ rest to restore later. Each clear is deleted on its own 24 hours after
 it was made, and the oldest go sooner if the cleared history passes
 1 GB.
 
-Secrets are never written to disk. A copy counts as one when it comes
-from a password app, even if you switch apps straight after copying,
-or contains an API key or token in a well-known format; it is shown
-masked and leaves the history after 10 minutes. A copy of it in the
-cleared history is deleted, so Restore cannot bring it back.
+A copy taken for a secret is never written to disk. A copy counts as
+one when it comes from a password app, even if you switch apps
+straight after copying, or contains an API key or token in a
+well-known format; it is shown masked and leaves the history after
+10 minutes. Earlier copies of its text, in the history or the cleared
+history, are deleted, so Restore cannot bring them back. If a copy is
+wrongly taken for a secret, Cmd+S keeps it as an ordinary item.
+
+This is a best guess, not a guarantee: a password copied from a
+browser extension or in Terminal, or a token in a format Klippari does
+not know, is saved like any other copy.
 
 ## Icon and screenshots
 

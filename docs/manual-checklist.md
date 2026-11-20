@@ -17,6 +17,10 @@ Expected behaviour is defined in `specification.md`.
       the browser still appears as dots only, credited to Passwords.
 - [ ] A copied API key (`sk-ant-…`, `ghp_…`) appears masked as prefix,
       dots and its last four characters; two keys can be told apart.
+- [ ] With a secret selected the footer shows Cmd+S 'Not a secret';
+      Cmd+S shows the row in full, and it is still there after a
+      restart.
+- [ ] A URL with an `sk-some-long-slug` path is not masked.
 - [ ] A long line and a long file name lose their middle, not their
       end.
 - [ ] Copying the same thing twice leaves one row, moved to the top.
@@ -63,7 +67,8 @@ Expected behaviour is defined in `specification.md`.
 - [ ] Copying a password as ordinary text, clearing, then copying it in
       Passwords takes it out of Cleared history (the count
       drops at once); once the secret has gone after 10 minutes, Restore
-      does not bring the password back.
+      does not bring the password back. The same with the password
+      copied first from a Notes note, as rich text.
 - [ ] The panel looks right in light and dark mode, over light and
       dark windows, including its corners and blur.
 - [ ] An image row shows a thumbnail.

@@ -19,6 +19,19 @@ import ClipboardCore
         model.rows.map(\.presentation.title)
     }
 
+    @Test func notASecretShowsTheSelectedSecretInFull() {
+        let model = makeModel("a")
+        store.add(text("hunter2-but-longer"), sourceApp: "Passwords", secret: true, now: at(500))
+        model.open()
+        #expect(model.selectionIsSecret)
+        #expect(titles(model) == [Secrets.dots, "a"])
+        let id = model.selectedID
+        model.keepSelectedAsOrdinary()
+        #expect(!model.selectionIsSecret)
+        #expect(model.selectedID == id)
+        #expect(titles(model) == ["hunter2-but-longer", "a"])
+    }
+
     @Test func openSelectsNewest() {
         let model = makeModel("a", "b", "c")
         #expect(titles(model) == ["c", "b", "a"])

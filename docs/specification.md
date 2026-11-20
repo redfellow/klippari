@@ -94,6 +94,13 @@ without the mouse.
   the minutes left.
 - The filter matches only what a secret's row shows, and the word
   'secret'. The image preview never shows a secret.
+- Cmd+S on a selected secret keeps it as an ordinary item: it is saved
+  and shown in full, and copies of the same text are not taken for
+  secrets again until the app quits. While a secret is selected, the
+  footer's 'Quick paste' hint gives way to 'Not a secret'.
+- An OpenAI-style `sk-` key must be at least 32 characters after its
+  prefix and mix capitals, small letters and digits, so that URL slugs
+  and CSS class names starting with `sk-` are not taken for keys.
 
 ## Storage
 

@@ -261,6 +261,9 @@ private final class HistoryPanel: NSPanel {
         case kVK_Delete where flags == [.command, .shift]:
             onClearAll?()
             return true
+        case kVK_ANSI_S where flags == [.command]:
+            model.keepSelectedAsOrdinary()
+            return true
         default:
             break
         }

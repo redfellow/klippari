@@ -256,7 +256,13 @@ struct PanelView: View {
             } else {
                 KeyHint(keys: "↩", label: "Paste")
                 KeyHint(keys: "⇧ ↩", label: "Plain text")
-                KeyHint(keys: "⌘ 1–9", label: "Quick paste")
+                // On a secret, the way out of a wrong guess matters more
+                // than quick paste, and the footer has room for one.
+                if model.selectionIsSecret {
+                    KeyHint(keys: "⌘ S", label: "Not a secret")
+                } else {
+                    KeyHint(keys: "⌘ 1–9", label: "Quick paste")
+                }
                 Spacer()
                 // Shift turns Delete into clearing everything.
                 HStack(spacing: 6) {

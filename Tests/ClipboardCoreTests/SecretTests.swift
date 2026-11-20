@@ -6,6 +6,7 @@ import ClipboardCore
 // see anything that looks like a real one in the source.
 let fakeAnthropicKey = "sk-ant-" + "api03-" + String(repeating: "x", count: 30) + "Q4fZ"
 let otherAnthropicKey = "sk-ant-" + "api03-" + String(repeating: "x", count: 30) + "m81K"
+let fakeOpenAIKey = "sk-" + "proj-" + "Ab3" + String(repeating: "x", count: 40) + "Zq9"
 let fakeGitHubToken = "gh" + "p_" + String(repeating: "a", count: 32) + "WXYZ"
 let fakeAWSKey = "AK" + "IA" + "ABCDEFGHIJKLMNOP"
 let fakeSlackToken = "xo" + "xb-" + "1234567890-" + "abcdefghij"
@@ -106,6 +107,20 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         #expect(store.items.count == 1)
         #expect(store.items[0].expiresAt == at(1000))
         #expect(store.items[0].id == rich.id)
+    }
+
+    @Test func keepingASecretAsOrdinarySavesIt() {
+        let store = makeStore()
+        let item = store.add(text(fakeAnthropicKey), sourceApp: "Ghostty", secret: true, now: at(0))
+        store.keepAsOrdinary(item.id)
+        #expect(store.items.map(\.isSecret) == [false])
+        #expect(itemsOnDisk() == 1)
+        #expect(!store.expireSecrets(now: at(1000)))
+        #expect(makeStore().items.map(\.content) == [text(fakeAnthropicKey)])
+        // Copied again, it is not taken for a secret this run.
+        store.add(text(fakeAnthropicKey), sourceApp: "Ghostty", secret: true, now: at(1001))
+        #expect(store.items.map(\.isSecret) == [false])
+        #expect(itemsOnDisk() == 1)
     }
 
     @Test func clearingDropsSecretsAndArchivesTheRest() {
@@ -226,7 +241,7 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
 
 @Suite struct SecretDetectionTests {
     @Test func knownCredentialFormats() {
-        for credential in [fakeAnthropicKey, fakeGitHubToken, fakeAWSKey, fakeSlackToken, fakeJWT, fakePrivateKey] {
+        for credential in [fakeAnthropicKey, fakeOpenAIKey, fakeGitHubToken, fakeAWSKey, fakeSlackToken, fakeJWT, fakePrivateKey] {
             #expect(Secrets.containsCredential(credential), "\(credential.prefix(8))")
             #expect(Secrets.containsCredential("export KEY=\(credential)\n"), "\(credential.prefix(8))")
         }
@@ -239,6 +254,9 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
             String(repeating: "3f9a", count: 16), // a SHA-256 in hex
             "https://example.com/path?q=1",
             "risk-assessment-document-final", // 'sk-' inside a word
+            "https://shop.example/sk-hynix-platinum-p41-2tb-ssd", // a slug
+            "<div class=\"sk-loading-spinner-container-wide\">", // a CSS class
+            "sk-" + String(repeating: "abc1", count: 10), // no capitals
             "git rebase --onto main feature~3 feature",
         ]
         for string in ordinary {

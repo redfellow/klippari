@@ -42,7 +42,10 @@ public enum Secrets {
         Format(#"\b(github_pat_)[A-Za-z0-9_]{22,}"#),
         Format(#"\b(gh[pousr]_)[A-Za-z0-9]{36,}"#),
         Format(#"\b(sk-ant-)[A-Za-z0-9_-]{20,}"#),
-        Format(#"\b(sk-(?:proj-|svcacct-|admin-)?)[A-Za-z0-9_-]{20,}"#),
+        // A bare 'sk-' also starts URL slugs and CSS class names
+        // ('sk-loading-spinner'), so the key itself must be long and mix
+        // capitals, small letters and digits, as generated keys do.
+        Format(#"\b(sk-(?:proj-|svcacct-|admin-)?)(?=[A-Za-z0-9_-]*[A-Z])(?=[A-Za-z0-9_-]*[a-z])(?=[A-Za-z0-9_-]*[0-9])[A-Za-z0-9_-]{32,}"#),
         Format(#"\b(AKIA|ASIA)[0-9A-Z]{16}\b"#),
         Format(#"\b(xox[abposr]-)[A-Za-z0-9-]{10,}"#),
         Format(#"\b(eyJ)[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"#),
