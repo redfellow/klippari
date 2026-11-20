@@ -44,6 +44,19 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
         #expect(store.items.map(\.content) == [text("plain")])
     }
 
+    @Test func nextSecretExpiryIsTheSoonest() {
+        let store = makeStore()
+        #expect(store.nextSecretExpiry == nil)
+        store.add(text("plain"), sourceApp: nil, now: at(0))
+        store.add(text(fakeAnthropicKey), sourceApp: nil, secret: true, now: at(100))
+        store.add(text(fakeGitHubToken), sourceApp: nil, secret: true, now: at(50))
+        #expect(store.nextSecretExpiry == at(650))
+        store.expireSecrets(now: at(650))
+        #expect(store.nextSecretExpiry == at(700))
+        store.expireSecrets(now: at(700))
+        #expect(store.nextSecretExpiry == nil)
+    }
+
     @Test func pastingDoesNotExtendASecretButCopyingAgainDoes() {
         let store = makeStore()
         let item = store.add(text(fakeAnthropicKey), sourceApp: nil, secret: true, now: at(0))

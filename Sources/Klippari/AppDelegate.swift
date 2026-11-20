@@ -62,7 +62,10 @@ import os
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.expire() }
+            MainActor.assumeIsolated {
+                self?.expire()
+                self?.expireSecrets()
+            }
         }
         watchAppSwitches()
     }
@@ -120,7 +123,7 @@ import os
         panel?.hide()
         store = HistoryStore(storage: storage, limit: settings.historyLimit, sealingPlainItems: false)
         store.onSecretAdded = { [weak self] in
-            self?.startSecretTimer()
+            self?.scheduleSecretCheck()
             // A secret also takes its copies out of the cleared history.
             self?.showArchive()
         }
@@ -376,15 +379,21 @@ import os
         }
     }
 
-    /// Secrets leave the history ten minutes after they were copied. A
-    /// timer runs only while there are any, and keeps the panel's
-    /// minutes current while it is open.
-    private func startSecretTimer() {
-        guard secretTimer == nil else { return }
-        let timer = Timer(timeInterval: 15, repeats: true) { [weak self] _ in
+    /// Secrets leave the history ten minutes after they were copied. One
+    /// timer waits for the next to go, or at most 15 seconds while the
+    /// panel is open, to keep its minutes current. It runs only while
+    /// there are secrets. Timers stop while the Mac sleeps, so waking
+    /// checks again.
+    private func scheduleSecretCheck() {
+        secretTimer?.invalidate()
+        secretTimer = nil
+        guard let next = store.nextSecretExpiry else { return }
+        let now = Date()
+        let date = panel?.isVisible == true ? min(next, now.addingTimeInterval(15)) : next
+        let timer = Timer(fire: max(date, now), interval: 0, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated { self?.expireSecrets() }
         }
-        timer.tolerance = 5
+        timer.tolerance = 1
         RunLoop.main.add(timer, forMode: .common)
         secretTimer = timer
     }
@@ -394,10 +403,7 @@ import os
         if !expired, panel.isVisible {
             model.refreshTimes()
         }
-        if !store.items.contains(where: \.isSecret) {
-            secretTimer?.invalidate()
-            secretTimer = nil
-        }
+        scheduleSecretCheck()
     }
 
     private func applySettings() {
@@ -436,10 +442,16 @@ import os
             // show for the seconds until the next one.
             store.expireSecrets(now: Date())
             panel.show()
+            // While the panel is open, its minutes are kept current.
+            scheduleSecretCheck()
         }
     }
 
     private func paste(_ item: ClipItem, plainText: Bool) {
+        // A secret whose time is up is never pasted, even if its row is
+        // still showing.
+        expireSecrets()
+        guard store.items.contains(where: { $0.id == item.id }) else { return }
         monitor.paste(item, plainText: plainText)
         guard Paster.isTrusted else {
             // Without Accessibility the item is on the clipboard but cannot

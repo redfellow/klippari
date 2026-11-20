@@ -273,6 +273,11 @@ public struct RestoreResult: Equatable, Sendable {
         touch(index, now: now)
     }
 
+    /// When the next secret leaves the history; nil when there are none.
+    public var nextSecretExpiry: Date? {
+        items.lazy.compactMap(\.expiresAt).min()
+    }
+
     /// Removes the secrets whose time is up. Returns whether any were.
     @discardableResult
     public func expireSecrets(now: Date) -> Bool {
