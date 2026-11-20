@@ -95,7 +95,11 @@ without the mouse.
   with no known credential, such as a password, shows only the dots:
   none of its characters, and not its length. A line that is
   exactly a private key's BEGIN or END header stays. A lock badge shows
-  the minutes left.
+  the minutes left. Nothing else about a secret shows: it has the plain
+  text icon whatever it is, no tag (number of lines, styled), and a
+  copied file shows dots, not its name. VoiceOver reads the row as one
+  element: 'Secret:', the masked line with the dots read as 'hidden',
+  the source app and the time left.
 - The filter matches only what a secret's row shows, and the word
   'secret'. The image preview never shows a secret.
 - Cmd+S on a selected secret keeps it as an ordinary item: it is saved

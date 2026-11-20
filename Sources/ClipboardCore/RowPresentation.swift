@@ -27,7 +27,20 @@ public struct RowPresentation: Equatable, Sendable {
         // image data, since Finder adds the file's icon, unless the copy
         // is an image that is also offered as its saved file.
         let imageIsTheFile = item.imageInfo != nil && Self.isImageOfferedAsFile(content, files)
-        if !files.isEmpty, !imageIsTheFile {
+        if item.isSecret {
+            // Only the masked first line shows, and only it is searched,
+            // so typing in the filter cannot confirm the hidden part.
+            // Nothing else about the secret shows either: not that it is
+            // a link, nor its number of lines, nor a file's name.
+            kind = .text
+            let firstLine = string?
+                .components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .first { !$0.isEmpty }
+            title = firstLine.map(Secrets.mask) ?? Secrets.dots
+            tag = nil
+            searchParts = [title, "secret"]
+        } else if !files.isEmpty, !imageIsTheFile {
             kind = .file
             title = files.count == 1 ? files[0].lastPathComponent : "\(files.count) files"
             tag = "file"
@@ -42,15 +55,8 @@ public struct RowPresentation: Equatable, Sendable {
                 .components(separatedBy: .newlines)
                 .map { $0.trimmingCharacters(in: .whitespaces) }
                 .filter { !$0.isEmpty }
-            if item.isSecret {
-                // Only the masked line is shown, and only it is searched,
-                // so typing in the filter cannot confirm the hidden part.
-                title = Secrets.mask(lines.first ?? "")
-                searchParts = [title, "secret"]
-            } else {
-                title = lines.first ?? "Empty text"
-                searchParts = [string]
-            }
+            title = lines.first ?? "Empty text"
+            searchParts = [string]
             if content.hasType(TypeName.rtf) || content.hasType(TypeName.html) {
                 kind = .styledText
                 tag = "styled"
@@ -96,6 +102,14 @@ public struct RowPresentation: Equatable, Sendable {
               scheme == "http" || scheme == "https"
         else { return false }
         return url.host != nil
+    }
+
+    /// What VoiceOver reads for a secret's title: the dots as the word
+    /// 'hidden' rather than one 'bullet' each.
+    public var spokenTitle: String {
+        title.replacingOccurrences(of: Secrets.dots, with: " hidden ")
+            .split(separator: " ", omittingEmptySubsequences: true)
+            .joined(separator: " ")
     }
 
     /// Case-insensitive substring match; an empty query matches everything.

@@ -341,6 +341,24 @@ private struct RowMouse: ViewModifier {
     }
 }
 
+/// VoiceOver reads a secret's row as one element that says it is a
+/// secret, with its masked title in words and the time it has left,
+/// rather than a run of bullets and a lock image.
+private struct SecretRowAccessibility: ViewModifier {
+    let row: PanelModel.Row
+
+    func body(content: Content) -> some View {
+        if let expiresIn = row.expiresIn {
+            let from = row.sourceApp.isEmpty ? "" : ", from \(row.sourceApp)"
+            content
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Secret: \(row.presentation.spokenTitle)\(from), removed in \(expiresIn)")
+        } else {
+            content
+        }
+    }
+}
+
 private struct RowView: View {
     let row: PanelModel.Row
     let isSelected: Bool
@@ -400,6 +418,7 @@ private struct RowView: View {
             isSelected ? PanelMetrics.blue : Color.clear,
             in: RoundedRectangle(cornerRadius: 8, style: .continuous)
         )
+        .modifier(SecretRowAccessibility(row: row))
     }
 
     /// A title too long for the row loses its middle, so both the start

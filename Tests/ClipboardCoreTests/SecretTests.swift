@@ -315,6 +315,34 @@ let fakePrivateKey = ["-----BEGIN OPENSSH " + "PRIVATE KEY-----", "b3BlbnNzaC1rZ
     }
 }
 
+@MainActor @Suite struct SecretRowDetailTests {
+    func row(_ content: ClipContent) -> RowPresentation {
+        let store = HistoryStore(storage: ItemStorage(root: temporaryRoot(), cipher: testCipher))
+        return RowPresentation(store.add(content, sourceApp: nil, secret: true, now: at(0)))
+    }
+
+    @Test func aSecretRowShowsNothingButItsMaskedLine() {
+        let link = row(text("https://user:hunter2@example.com/"))
+        #expect(link.kind == .text)
+        #expect(link.title == Secrets.dots)
+        #expect(link.tag == nil)
+        let lines = row(text("# deploy\nexport GH_TOKEN=\(fakeGitHubToken)\n"))
+        #expect(lines.tag == nil)
+        #expect(lines.title == Secrets.dots)
+        let file = row(content(typed(TypeName.fileURL, "file:///Users/me/passwords.csv")))
+        #expect(file.kind == .text)
+        #expect(file.title == Secrets.dots)
+        #expect(!file.searchText.contains("passwords"))
+        let styled = row(content(typed(TypeName.plainText, "hunter2-but-longer"), typed(TypeName.rtf, "{rtf}")))
+        #expect(styled.tag == nil)
+    }
+
+    @Test func voiceOverReadsTheDotsAsHidden() {
+        #expect(row(text(fakeAnthropicKey)).spokenTitle == "sk-ant- hidden Q4fZ")
+        #expect(row(text("hunter2-but-longer")).spokenTitle == "hidden")
+    }
+}
+
 @Suite struct SecretDetectionTests {
     @Test func knownCredentialFormats() {
         for credential in [fakeAnthropicKey, fakeOpenAIKey, fakeGitHubToken, fakeAWSKey, fakeSlackToken, fakeJWT, fakePrivateKey] {
